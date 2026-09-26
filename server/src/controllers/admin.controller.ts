@@ -1,0 +1,1 @@
+import * as s from '../services/admin.service'; import {ok} from '../utils/response'; export const dashboard=async(_q:any,r:any)=>ok(r,await s.dashboard()); export const customers=async(_q:any,r:any)=>ok(r,await s.customersList());

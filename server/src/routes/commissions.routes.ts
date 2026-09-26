@@ -1,0 +1,2 @@
+import {Router} from 'express'; import * as c from '../controllers/commissions.controller'; import {auth,roles} from '../middleware/auth'; import {validate} from '../middleware/validation'; import {commissionTransitionSchema} from '../validators/common';
+const r=Router(); r.get('/mine',auth,c.mine); r.get('/',auth,roles('admin','super_admin'),c.all); r.patch('/:id',auth,roles('admin','super_admin'),validate(commissionTransitionSchema),c.transition); export default r;

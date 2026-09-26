@@ -1,0 +1,4 @@
+import * as s from "../services/coupons.service";import{ok}from"../utils/response";import{record}from"../services/audit.service";
+export const list=async(_q:any,r:any)=>ok(r,await s.list());export const create=async(q:any,r:any)=>{const x=await s.create(q.body);await record(q.user.id,"CREATE","Coupon",x._id.toString());return ok(r,x,"Created",201)};
+export const update=async(q:any,r:any)=>{const x=await s.update(q.params.id,q.body);await record(q.user.id,"UPDATE","Coupon",q.params.id);return ok(r,x)};
+export const remove=async(q:any,r:any)=>{const x=await s.remove(q.params.id);await record(q.user.id,"DELETE","Coupon",q.params.id);return ok(r,x)}; export const validate=async(q:any,r:any)=>ok(r,await s.validate(q.body.code,Number(q.body.subtotal),q.user.id));

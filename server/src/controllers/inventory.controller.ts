@@ -1,0 +1,1 @@
+import * as s from '../services/inventory.service'; import {ok} from '../utils/response'; export const adjust=async(q:any,r:any)=>ok(r,await s.adjust(q.params.productId,Number(q.body.change),q.user.id,q.body.type,q.body.note,q.body.variantId)); export const history=async(q:any,r:any)=>ok(r,await s.history(q.query.product));

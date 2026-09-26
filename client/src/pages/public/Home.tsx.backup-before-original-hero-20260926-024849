@@ -1,0 +1,549 @@
+﻿import React,{useEffect,useState}from"react";
+import{Link}from"react-router-dom";
+import{request,apiError}from"../../api";
+import ProductCard from"../../components/ProductCard";
+import type{Banner,Category,Product,ProductListResponse,Video}from"../../types";
+
+type Section={title:string;items:Product[];link?:string};
+
+function State({loading,error,retry}:{loading:boolean;error?:string;retry?:()=>void}){
+ if(loading)return <div className="state">Loading NovaCart…</div>;
+ if(error)return <div className="state error">{error} {retry&&<button className="btn ghost"onClick={retry}>Retry</button>}</div>;
+ return null;
+}
+
+export function Home(){
+ const[banners,setBanners]=useState<Banner[]>([]);
+ const[bannerIndex,setBannerIndex]=useState(0);
+ const[promo,setPromo]=useState<any[]>([]);
+ const[featured,setFeatured]=useState<Product[]>([]);
+ const[newArrivals,setNewArrivals]=useState<Product[]>([]);
+ const[best,setBest]=useState<Product[]>([]);
+ const[limited,setLimited]=useState<Product[]>([]);
+ const[special,setSpecial]=useState<Product[]>([]);
+ const[categories,setCategories]=useState<Category[]>([]);
+ const[videos,setVideos]=useState<Video[]>([]);
+ const[err,setErr]=useState("");
+
+ const load=()=>{
+  setErr("");
+
+  Promise.all([
+   request<Banner[]>("get","/banners"),
+   request<any[]>("get","/promo-images"),
+   request<ProductListResponse>("get","/products?limit=8&featured=true"),
+   request<ProductListResponse>("get","/products?limit=8&newArrival=true"),
+   request<ProductListResponse>("get","/products?limit=8&bestSeller=true"),
+   request<ProductListResponse>("get","/products?limit=8&limitedStock=true"),
+   request<ProductListResponse>("get","/products?limit=8&discounted=true&sort=discount"),
+   request<Category[]>("get","/categories"),
+   request<Video[]>("get","/videos")
+  ])
+  .then(([b,p,f,n,bs,l,sp,c,v])=>{
+   setBanners(b.data||[]);
+   setPromo(p.data||[]);
+   setFeatured(f.data.items||[]);
+   setNewArrivals(n.data.items||[]);
+   setBest(bs.data.items||[]);
+   setLimited(l.data.items||[]);
+   setSpecial(sp.data.items||[]);
+   setCategories(c.data||[]);
+   setVideos(v.data||[]);
+  })
+  .catch(e=>setErr(apiError(e)));
+ };
+
+ useEffect(()=>{
+  load();
+ },[]);
+
+ /*
+  * Banner logic:
+  * - Only ONE banner is visible at a time.
+  * - Auto changes every 5 seconds.
+  * - Arrows/dots can manually change it.
+  * - Promo images remain a separate section below the hero.
+  */
+ useEffect(()=>{
+  setBannerIndex(i=>Math.max(0,Math.min(i,Math.max(0,banners.length-1))));
+ },[banners.length]);
+
+ useEffect(()=>{
+  if(banners.length<2)return;
+
+  const timer=window.setInterval(()=>{
+   setBannerIndex(i=>(i+1)%banners.length);
+  },5000);
+
+  return()=>window.clearInterval(timer);
+ },[banners.length]);
+
+ const banner=banners[bannerIndex];
+ const video=videos[0];
+
+ const sections:Section[]=[
+  {title:"Today's Special",items:special,link:"/products?discounted=true"},
+  {title:"New Arrivals",items:newArrivals,link:"/products?newArrival=true"},
+  {title:"Best Sellers",items:best,link:"/products?bestSeller=true"},
+  {title:"Limited Stock",items:limited,link:"/products?limitedStock=true"},
+  {title:"Featured Collection",items:featured,link:"/products?featured=true"}
+ ];
+
+ return(
+  <main className="home-page">
+
+   <State
+    error={err}
+    retry={load}
+    loading={!featured.length&&!newArrivals.length&&!err}
+   />
+
+   {/* =====================================================
+       HERO BANNER
+       Only ONE banner visible at a time.
+       ===================================================== */}
+
+   <section className="hero-premium novacart-hero nova-hero-modern">
+
+  <div className="hero-slider">
+
+    {banners.length > 0 ? (
+      banners.map((b: any, i: number) => {
+
+        const title=String(b?.title||"").trim();
+        const subtitle=String(b?.subtitle||"").trim();
+        const image=String(b?.image||"").trim();
+        const buttonText=String(b?.buttonText||"").trim();
+        const buttonUrl=String(b?.buttonUrl||"").trim();
+
+        return (
+          <article
+            key={b?._id||i}
+            className={`hero-slide ${i===bannerIndex?"is-active":""}`}
+            aria-hidden={i!==bannerIndex}
+          >
+
+            <div className="nova-hero-bg"></div>
+
+            <div className="nova-hero-inner">
+
+              <div className="nova-hero-copy">
+
+                <span className="nova-hero-kicker">
+                  NOVACART
+                </span>
+
+                {title && (
+                  <h1 className="nova-hero-title">
+                    {title}
+                  </h1>
+                )}
+
+                {subtitle && (
+                  <p className="nova-hero-subtitle">
+                    {subtitle}
+                  </p>
+                )}
+
+                {buttonText && buttonUrl && (
+                  buttonUrl.startsWith("/") ? (
+                    <Link
+                      className="nova-hero-cta"
+                      to={buttonUrl}
+                    >
+                      <span>{buttonText}</span>
+                      <span className="nova-hero-cta-arrow">↗</span>
+                    </Link>
+                  ) : (
+                    <a
+                      className="nova-hero-cta"
+                      href={buttonUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span>{buttonText}</span>
+                      <span className="nova-hero-cta-arrow">↗</span>
+                    </a>
+                  )
+                )}
+
+              </div>
+
+              <div className="nova-hero-media">
+
+                <div className="nova-hero-glow"></div>
+
+                {image ? (
+                  <img
+                    src={image}
+                    alt={title||"NovaCart"}
+                    className="nova-hero-image"
+                    loading={i===0?"eager":"lazy"}
+                  />
+                ) : (
+                  <div className="nova-hero-empty">
+                    NovaCart
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+          </article>
+        );
+      })
+    ) : (
+      <article className="hero-slide hero-fallback is-active">
+
+        <div className="nova-hero-inner">
+
+          <div className="nova-hero-copy">
+            <span className="nova-hero-kicker">
+              NOVACART
+            </span>
+
+            <h1 className="nova-hero-title">
+              Welcome to NovaCart
+            </h1>
+
+            <p className="nova-hero-subtitle">
+              Discover products selected for your everyday needs.
+            </p>
+          </div>
+
+          <div className="nova-hero-media">
+            <div className="nova-hero-glow"></div>
+            <div className="nova-hero-empty">
+              NovaCart
+            </div>
+          </div>
+
+        </div>
+
+      </article>
+    )}
+
+    {banners.length>1 && (
+      <>
+
+        <button
+          type="button"
+          className="nova-hero-arrow nova-hero-prev"
+          aria-label="Previous banner"
+          onClick={() =>
+            setBannerIndex(
+              i=>(i-1+banners.length)%banners.length
+            )
+          }
+        >
+          <span>←</span>
+        </button>
+
+        <button
+          type="button"
+          className="nova-hero-arrow nova-hero-next"
+          aria-label="Next banner"
+          onClick={() =>
+            setBannerIndex(
+              i=>(i+1)%banners.length
+            )
+          }
+        >
+          <span>→</span>
+        </button>
+
+        <div className="nova-hero-dots">
+          {banners.map((b:any,i:number)=>(
+            <button
+              key={b?._id||i}
+              type="button"
+              className={i===bannerIndex?"active":""}
+              aria-label={`Go to banner ${i+1}`}
+              onClick={()=>setBannerIndex(i)}
+            />
+          ))}
+        </div>
+
+      </>
+    )}
+
+  </div>
+
+</section>
+<section className="trust-strip">
+
+    <div>
+     <strong>✓</strong>
+     <span>
+      <b>Secure checkout</b>
+      <small>Protected payments</small>
+     </span>
+    </div>
+
+    <div>
+     <strong>↗</strong>
+     <span>
+      <b>Reliable delivery</b>
+      <small>Track your order</small>
+     </span>
+    </div>
+
+    <div>
+     <strong>↺</strong>
+     <span>
+      <b>Easy support</b>
+      <small>We're here to help</small>
+     </span>
+    </div>
+
+    <div>
+     <strong>◆</strong>
+     <span>
+      <b>Curated products</b>
+      <small>Quality-focused shopping</small>
+     </span>
+    </div>
+
+   </section>
+
+   {/* =====================================================
+       CATEGORIES
+       ===================================================== */}
+
+   {categories.length>0&&(
+    <section className="section home-section">
+
+     <div className="section-head premium-head">
+
+      <div>
+       <span className="eyebrow">EXPLORE</span>
+       <h2>Shop by category</h2>
+      </div>
+
+      <Link className="view-link"to="/categories">
+       View all →
+      </Link>
+
+     </div>
+
+     <div className="category-grid">
+
+      {categories.slice(0,6).map(x=>(
+       <Link
+        className="category-tile"
+        key={x._id}
+        to={`/products/${x.slug}`}
+       >
+
+        {x.image&&(
+         <img
+          loading="lazy"
+          src={x.image}
+          alt={x.name}
+         />
+        )}
+
+        <span>{x.name}</span>
+        <small>Explore →</small>
+
+       </Link>
+      ))}
+
+     </div>
+
+    </section>
+   )}
+
+   {/* =====================================================
+       PROMO IMAGES
+       IMPORTANT:
+       This is a SEPARATE section.
+       It does NOT overlap the hero banner.
+       Multiple promo cards can be visible together.
+       ===================================================== */}
+
+   {promo.length>0&&(
+    <section className="section home-section home-promos promo-images-section">
+
+     <div className="section-head premium-head">
+
+      <div>
+       <span className="eyebrow">CURATED FOR YOU</span>
+       <h2>Featured offers</h2>
+      </div>
+
+      <Link
+       className="view-link"
+       to="/products?discounted=true"
+      >
+       Shop offers →
+      </Link>
+
+     </div>
+
+     <div className="promo-grid premium-promo-grid">
+
+      {promo.slice(0,3).map(x=>(
+       <article
+        className="promo-card premium-promo"
+        key={x._id}
+       >
+
+        {x.image&&(
+         <img
+          loading="lazy"
+          src={x.image}
+          alt={x.title||"Offer"}
+         />
+        )}
+
+        <div>
+
+         <span className="eyebrow">
+          SPECIAL OFFER
+         </span>
+
+         {x.title&&<h3>{x.title}</h3>}
+
+         {x.description&&(
+          <p>{x.description}</p>
+         )}
+
+         {x.buttonUrl&&(
+          <a
+           className="btn"
+           href={x.buttonUrl}
+          >
+           {x.buttonText||"Explore"} →
+          </a>
+         )}
+
+        </div>
+
+       </article>
+      ))}
+
+     </div>
+
+    </section>
+   )}
+
+   {/* =====================================================
+       PRODUCT SECTIONS
+       ===================================================== */}
+
+   {sections.map(sec=>(
+    <section
+     className="section home-section"
+     key={sec.title}
+    >
+
+     <div className="section-head premium-head">
+
+      <div>
+       <span className="eyebrow">NOVACART</span>
+       <h2>{sec.title}</h2>
+      </div>
+
+      <Link
+       className="view-link"
+       to={sec.link||"/products"}
+      >
+       View all →
+      </Link>
+
+     </div>
+
+     {sec.items.length>0?(
+      <div className="grid premium-product-grid">
+       {sec.items.map(x=>(
+        <ProductCard
+         key={x._id}
+         p={x}
+        />
+       ))}
+      </div>
+     ):(
+      <div className="empty">
+       Products will appear here when available.
+      </div>
+     )}
+
+    </section>
+   ))}
+
+   {/* =====================================================
+       FEATURED VIDEO
+       ===================================================== */}
+
+   {video&&(
+    <section className="section home-section">
+
+     <div className="video-feature">
+
+      <div className="video-copy">
+
+       <span className="eyebrow">
+        WATCH & DISCOVER
+       </span>
+
+       <h2>
+        {video.title||"Discover NovaCart"}
+       </h2>
+
+       {video.description&&(
+        <p>{video.description}</p>
+       )}
+
+       <Link className="btn"to="/products">
+        Shop collection →
+       </Link>
+
+      </div>
+
+      <video
+       controls
+       poster={video.thumbnail}
+       src={video.url}
+       className="featured-video"
+      />
+
+     </div>
+
+    </section>
+   )}
+
+   {/* =====================================================
+       AFFILIATE / RESELLER
+       ===================================================== */}
+
+   <section className="section reseller-banner">
+
+    <div>
+
+     <span className="eyebrow">
+      GROW WITH NOVACART
+     </span>
+
+     <h2>
+      Want to earn while you share?
+     </h2>
+
+     <p>
+      Explore the NovaCart affiliate and reseller experience.
+     </p>
+
+    </div>
+
+    <Link className="btn"to="/affiliate">
+     Explore affiliate →
+    </Link>
+
+   </section>
+
+  </main>
+ );
+}
+
+

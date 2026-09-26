@@ -1,0 +1,3 @@
+import{connectDatabase}from"./mongo";import{Product,Delivery}from"../models";
+(async()=>{await connectDatabase();const a=await Product.updateMany({limitedTimeOffer:{$exists:false}},{$set:{limitedTimeOffer:false}});
+const b=await Product.updateMany({discountType:{$exists:false},discount:{$gt:0}},[{$set:{discountType:"percentage",discountValue:"$discount",discountPercentage:"$discount"}}]);const c=await Delivery.updateMany({recipientConfirmedAt:{$exists:false}},{$set:{recipientConfirmedAt:null}});console.log("Catalog/delivery migration complete",{limitedTimeOffers:a.modifiedCount,discounts:b.modifiedCount,deliveries:c.modifiedCount});process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});

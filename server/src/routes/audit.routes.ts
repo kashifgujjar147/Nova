@@ -1,0 +1,1 @@
+import {Router} from 'express'; import * as c from '../controllers/audit.controller'; import {auth,roles} from '../middleware/auth'; import {validate} from '../middleware/validation'; import {auditFilterSchema} from '../validators/common'; const r=Router(); r.get('/',auth,roles('admin','super_admin'),validate(auditFilterSchema),c.all); export default r;

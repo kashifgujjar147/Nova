@@ -1,0 +1,1 @@
+import {Banner} from '../models'; export const list=()=>Banner.find({active:true}).sort({sortOrder:1}); export const all=()=>Banner.find().sort({sortOrder:1}); export const create=(d:any)=>Banner.create(d); export const update=(id:string,d:any)=>Banner.findByIdAndUpdate(id,d,{new:true}); export const remove=(id:string)=>Banner.findByIdAndUpdate(id,{active:false},{new:true});

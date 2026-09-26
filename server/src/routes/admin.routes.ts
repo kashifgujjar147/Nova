@@ -1,0 +1,1 @@
+import {Router} from 'express'; import * as c from '../controllers/admin.controller'; import {auth,roles} from '../middleware/auth'; const r=Router(); r.get('/dashboard',auth,roles('admin','super_admin'),c.dashboard); r.get('/customers',auth,roles('admin','super_admin'),c.customers); export default r;

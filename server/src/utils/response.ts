@@ -1,0 +1,1 @@
+export const ok=(res:any,data:any,message='OK',status=200)=>res.status(status).json({success:true,data,message}); export const fail=(res:any,message:string,status=400,code='BAD_REQUEST')=>res.status(status).json({success:false,message,code});

@@ -1,0 +1,4 @@
+import {Review,Order} from "../models";
+export const list=(product:string)=>Review.find({product,approved:true}).populate("user","name").sort({createdAt:-1});
+export async function create(d:any){const existing=await Review.findOne({user:d.user,product:d.product});if(existing)throw Object.assign(new Error("You have already reviewed this product"),{status:409});const eligible=await Order.findOne({user:d.user,status:{$in:["DELIVERED","COMPLETED"]},items:{$elemMatch:{product:d.product}}});if(!eligible)throw Object.assign(new Error("You can review a product after delivery"),{status:403});return Review.create({...d,approved:false});}
+export const moderate=(id:string,status:"APPROVED"|"REJECTED"|"PENDING",note?:string)=>Review.findByIdAndUpdate(id,{moderationStatus:status,moderationNote:note,approved:status==="APPROVED"},{new:true});

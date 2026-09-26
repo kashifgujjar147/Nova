@@ -1,0 +1,3 @@
+import {Router} from "express"; import * as c from "../controllers/orders.controller"; import {auth,roles} from "../middleware/auth";import {validate} from "../middleware/validation";import {orderStatusSchema,orderIdSchema,emptyRequestSchema} from "../validators/common";
+const r=Router(); r.get("/",auth,validate(emptyRequestSchema),c.mine); r.get("/admin/list",auth,roles("admin","super_admin"),c.adminList); r.get("/:id",auth,c.get);
+r.post("/:id/cancel",auth,validate(orderIdSchema),c.cancel); r.patch("/:id/status",auth,roles("admin","super_admin"),validate(orderStatusSchema.extend({params:orderIdSchema.shape.params})),c.status); export default r;

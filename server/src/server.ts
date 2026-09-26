@@ -1,0 +1,1 @@
+import {app} from './app'; import {connectDatabase} from './database/mongo'; import {env} from './config/env'; connectDatabase().then(()=>app.listen(env.PORT,()=>console.log(`NovaCart API listening on ${env.PORT}`))).catch((e:any)=>{console.error(e);process.exit(1)});

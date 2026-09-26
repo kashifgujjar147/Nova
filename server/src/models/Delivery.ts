@@ -1,0 +1,3 @@
+import {Schema,model} from 'mongoose';
+const schema=new Schema({order:{type:Schema.Types.ObjectId,ref:'Order',required:true,unique:true},courier:String,trackingNumber:String,eta:Date,deliveryDate:Date,status:{type:String,enum:['PENDING','PACKED','SHIPPED','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED','RETURNED'],default:'PENDING',index:true},recipientName:String,recipientConfirmedAt:Date,notes:String,proofUpload:{type:Schema.Types.ObjectId,ref:'Upload'},proofUploadedBy:{type:Schema.Types.ObjectId,ref:'User'},proofUploadedAt:Date,signatureUpload:{type:Schema.Types.ObjectId,ref:'Upload'},statusHistory:[{status:String,at:Date,actor:{type:Schema.Types.ObjectId,ref:'User'}}]},{timestamps:true});
+export const Delivery=model('Delivery',schema);

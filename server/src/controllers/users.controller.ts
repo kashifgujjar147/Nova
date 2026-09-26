@@ -1,0 +1,2 @@
+import * as s from "../services/users.service";import {ok} from "../utils/response";
+export const update=async(q:any,r:any)=>ok(r,await s.update(q.user.id,q.body));export const addresses=async(q:any,r:any)=>ok(r,await s.addresses(q.user.id));export const addAddress=async(q:any,r:any)=>ok(r,await s.addAddress(q.user.id,q.body),"Address saved",201);export const removeAddress=async(q:any,r:any)=>ok(r,await s.removeAddress(q.params.id,q.user.id));export const setDefault=async(q:any,r:any)=>ok(r,await s.setDefault(q.params.id,q.user.id));

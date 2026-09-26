@@ -1,0 +1,45 @@
+﻿import {Category} from '../models';
+
+function makeSlug(value:string){
+ const base=String(value||"category")
+  .toLowerCase()
+  .trim()
+  .replace(/&/g,"and")
+  .replace(/[^a-z0-9]+/g,"-")
+  .replace(/^-+|-+$/g,"")
+  .slice(0,150);
+
+ return base||"category";
+}
+
+async function uniqueSlug(value:string){
+ const base=makeSlug(value);
+ let slug=base;
+ let i=2;
+
+ while(await Category.exists({slug})){
+  slug=`${base}-${i++}`;
+ }
+
+ return slug;
+}
+
+export const list=()=>Category.find({active:true}).sort({sortOrder:1,name:1});
+
+export const create=async(d:any)=>{
+ const payload={...d};
+ payload.slug=await uniqueSlug(d.slug||d.name);
+ delete payload.description;
+ delete payload.image;
+ return Category.create(payload);
+};
+
+export const update=async(id:string,d:any)=>{
+ const payload={...d};
+ delete payload.slug;
+ delete payload.description;
+ delete payload.image;
+ return Category.findByIdAndUpdate(id,payload,{new:true});
+};
+
+export const remove=(id:string)=>Category.findByIdAndUpdate(id,{active:false},{new:true});

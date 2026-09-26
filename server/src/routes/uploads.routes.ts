@@ -1,0 +1,1 @@
+import{Router}from"express";import*as c from"../controllers/uploads.controller";import{auth,roles}from"../middleware/auth"; import {validate} from "../middleware/validation"; import {uploadSchema} from "../validators/common";const r=Router();r.post("/",auth,validate(uploadSchema),c.create);r.get("/:id",c.get);export default r;

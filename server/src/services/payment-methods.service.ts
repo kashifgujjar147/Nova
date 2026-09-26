@@ -1,0 +1,1 @@
+import {PaymentMethod} from '../models'; export const list=(activeOnly=false)=>PaymentMethod.find(activeOnly?{active:true}:{}).sort({name:1}); export const create=(d:any)=>PaymentMethod.create(d); export const update=(id:string,d:any)=>PaymentMethod.findByIdAndUpdate(id,d,{new:true}); export const remove=(id:string)=>PaymentMethod.findByIdAndUpdate(id,{active:false},{new:true});

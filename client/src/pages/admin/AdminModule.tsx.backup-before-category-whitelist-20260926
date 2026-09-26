@@ -1,0 +1,469 @@
+﻿import{useEffect,useState}from"react";import{Link,useNavigate}from"react-router-dom";import{request,apiError}from"../../api";import{money}from"../../components/Layout";import AdminShell from"../../components/AdminShell";
+const maps:any={products:"/products/admin/all",categories:"/categories",payments:"/payments",orders:"/orders/admin/list",commissions:"/commissions",banners:"/banners/admin/all","promo-images":"/promo-images/admin/all",videos:"/videos/admin/all",coupons:"/coupons",inventory:"/inventory",customers:"/admin/customers","payment-methods":"/payment-methods/admin/all",affiliates:"/affiliates/admin",reviews:"/reviews/admin/all",delivery:"/delivery",notifications:"/notifications/admin/all",settings:"/settings","audit-logs":"/audit","admin-users":"/admin-users"};
+const endpoints:any={affiliates:"/affiliates/admin","admin-users":"/admin-users",products:"/products",categories:"/categories",banners:"/banners","promo-images":"/promo-images",videos:"/videos",coupons:"/coupons","payment-methods":"/payment-methods",settings:"/settings",notifications:"/notifications"};
+const fields:any={
+"admin-users":[["name","Name"],["email","Email"],["phone","Phone"],["password","Initial password"],["role","Role"]],
+categories:[["name","Category Name"],["description","Description"],["image","Image URL"],["sortOrder","Display order"],["active","Active"]],
+banners:[["title","Title"],["subtitle","Subtitle"],["image","Image URL"],["buttonText","Button text"],["buttonUrl","Target URL"],["sortOrder","Display order"],["active","Active"],["startDate","Start date"],["endDate","End date"]],
+"promo-images":[["title","Title"],["description","Description"],["image","Image URL"],["buttonText","Button text"],["buttonUrl","Target URL"],["sortOrder","Display order"],["active","Active"]],
+videos:[["title","Title"],["description","Description"],["url","Video URL/source"],["thumbnail","Thumbnail URL"],["sortOrder","Display order"],["active","Active"]],
+"payment-methods":[["name","Name"],["type","Type (COD/WALLET/BANK_TRANSFER)"],["instructions","Instructions"],["accountNumber","Account number"],["accountTitle","Account title"],["requiresTransactionId","Transaction ID required"],["requiresReceipt","Receipt required"],["requiresManualReview","Manual review"],["active","Active"],["ordering","Ordering"]],
+coupons:[["code","Code"],["type","Type (percentage/fixed)"],["value","Value"],["minOrder","Minimum order"],["maxDiscount","Maximum discount"],["usageLimit","Global usage limit"],["perUserLimit","Per-user limit"],["startsAt","Starts at"],["expiresAt","Expires at"],["active","Active"]],
+settings:[["storeName","Store name"],["logo","Logo URL"],["currency","Currency"],["shippingFee","Shipping fee"],["freeShippingThreshold","Free shipping threshold"],["defaultCommission","Default commission %"],["storeStatus","Store status"],["maintenanceMode","Maintenance mode"],["socialWhatsapp","WhatsApp URL"],["socialMessenger","Messenger URL"],["socialTelegram","Telegram URL"],["socialTiktok","TikTok URL"]],
+notifications:[["user","User ID (optional)"],["type","Type"],["title","Title"],["message","Message"],["audience","Audience (all or user)"]],
+products:[
+["name","Product name *"],
+["category","Category *"],
+["originalPrice","Original price (PKR) *"],
+["salePrice","Sale price (PKR) *"],
+["stock","Stock quantity *"],
+["images","Product images *"],
+["description","Description"],
+["brand","Brand"],
+["colors","Colors (comma separated)"],
+["sizes","Sizes (comma separated)"],
+["gender","Gender (Male/Female/Unisex)"],
+["video","Product video URL"]
+]};
+const bools=["active","featured","newArrival","bestSeller","limitedStock","limitedTimeOffer","availability","maintenanceMode","requiresTransactionId","requiresReceipt","requiresManualReview"];
+const arrays=["images","colors","sizes"];
+const dates=["startDate","endDate","startsAt","expiresAt","offerStartDate","offerEndDate"];
+function Input({field,value,onChange,onFile}:{field:string;value:any;onChange:(v:any)=>void;onFile?:(f:File)=>void}){if(field==="discountType")return <select value={value??""}onChange={e=>onChange(e.target.value||undefined)}><option value="">No discount</option><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></select>;if(bools.includes(field))return <label className="check"><input type="checkbox"checked={Boolean(value)}onChange={e=>onChange(e.target.checked)}/>{field}</label>;if(arrays.includes(field))return <input value={Array.isArray(value)?value.join(", "):value??""}onChange={e=>onChange(e.target.value.split(",").map((x:string)=>x.trim()).filter(Boolean))}/>;if(dates.includes(field))return <input type="datetime-local"value={value?new Date(value).toISOString().slice(0,16):""}onChange={e=>onChange(e.target.value?new Date(e.target.value).toISOString():undefined)}/>;if(field==="description"||field==="instructions"||field==="message"||field==="subtitle")return <textarea value={value??""}onChange={e=>onChange(e.target.value)}/>;const numericFields=["value","minOrder","maxDiscount","usageLimit","perUserLimit","ordering","sortOrder","stock","originalPrice","salePrice","discountValue","discountPercentage","fixedDiscountAmount","weight"];return <input type={numericFields.includes(field)?"number":"text"}value={value??""}onChange={e=>onChange(numericFields.includes(field)?(e.target.value===""?undefined:Number(e.target.value)):e.target.value)}/>;}
+function UploadButton({onUploaded,kind="ADMIN_MEDIA",multiple=false}:{onUploaded:(url:string)=>void;kind?:string;multiple?:boolean}){const[busy,setBusy]=useState(false);return <label className="btn ghost small">{busy?"Uploadingâ€¦":"Upload media"}<input hidden type="file"multiple={multiple}accept="image/jpeg,image/png,image/webp,video/mp4"onChange={async e=>{const files=Array.from(e.target.files||[]);if(!files.length)return;setBusy(true);try{for(const file of files){const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(file)});const up=await request<any>("post","/uploads",{kind,filename:file.name,mimeType:file.type,data});onUploaded(up.data.url)}}catch(err){alert(apiError(err))}finally{setBusy(false);e.target.value=""}}}/></label>;}
+function VariantManager({variants,onChange}:{variants:any[];onChange:(v:any[])=>void}){const add=()=>onChange([...variants,{sku:"",name:"",price:0,stock:0,attributes:{color:"",size:""},images:[],active:true}]);const patch=(i:number,k:string,v:any)=>onChange(variants.map((x,j)=>j===i?{...x,[k]:v}:x));const patchAttr=(i:number,k:string,v:string)=>onChange(variants.map((x,j)=>j===i?{...x,attributes:{...(x.attributes||{}),[k]:v}}:x));return <section className="card"><div className="section-head"><h2>Variants</h2><button className="btn"type="button"onClick={add}>Add variant</button></div>{variants.map((v,i)=><div className="card variant"key={v._id||i}><div className="form-grid"><label>SKU<input value={v.sku||""}onChange={e=>patch(i,"sku",e.target.value)}/></label><label>Name<input value={v.name||""}onChange={e=>patch(i,"name",e.target.value)}/></label><label>Price<input type="number"min="0"value={v.price??0}onChange={e=>patch(i,"price",Number(e.target.value))}/></label><label>Stock<input type="number"min="0"value={v.stock??0}onChange={e=>patch(i,"stock",Number(e.target.value))}/></label><label>Color<input value={v.attributes?.color||""}onChange={e=>patchAttr(i,"color",e.target.value)}/></label><label>Size<input value={v.attributes?.size||""}onChange={e=>patchAttr(i,"size",e.target.value)}/></label><label>Images<input value={(v.images||[]).join(", ")}onChange={e=>patch(i,"images",e.target.value.split(",").map((x:string)=>x.trim()).filter(Boolean))}/></label><label className="check"><input type="checkbox"checked={v.active!==false}onChange={e=>patch(i,"active",e.target.checked)}/>Active</label></div><button className="btn ghost small"type="button"onClick={()=>onChange(variants.filter((_,j)=>j!==i))}>Remove variant</button></div>)}{!variants.length&&<div className="empty">No variants. Parent-product stock will be used.</div>}</section>;}
+export function Admin(){const[d,setD]=useState<any>(),[err,setErr]=useState("");const nav=useNavigate();useEffect(()=>{request("get","/admin/dashboard").then(r=>setD(r.data)).catch(e=>setErr(apiError(e)))},[]);const links=["products","categories","orders","payments","inventory","customers","affiliates","commissions","banners","promo-images","videos","coupons","reviews","delivery","payment-methods","notifications","settings","audit-logs","admin-users"];return <AdminShell><main className="page"><div className="section-head"><div><span className="eyebrow">ADMIN</span><h1>Control center</h1></div></div>{err&&<div className="error">{err}</div>}<div className="stats">{Object.entries(d||{}).map(([k,v])=><div key={k}><span>{k.replace(/([A-Z])/g," $1")}</span><strong>{typeof v==="number"&&/sales|payments/i.test(k)?money(v as number):String(v)}</strong></div>)}</div><div className="admin-grid">{links.map(x=><button className="card admin-link"key={x}onClick={()=>nav("/admin/"+x)}>{x.replace(/-/g," ")}</button>)}</div></main></AdminShell>;}
+export function AdminModule({name}:{name:string}){const[data,setData]=useState<any>(),[form,setForm]=useState<any>({active:true}),[variants,setVariants]=useState<any[]>([]),[categories,setCategories]=useState<any[]>([]),[err,setErr]=useState(""),[editing,setEditing]=useState<any>();const load=()=>{const url=maps[name];if(!url)return;request("get",url).then(r=>setData(r.data)).catch(e=>setErr(apiError(e)))};useEffect(()=>{load()},[name]);useEffect(()=>{if(name==="products"){request("get","/categories").then(r=>{const d:any=r.data;setCategories(Array.isArray(d)?d:(d?.items||[]))}).catch(()=>setCategories([]))}},[name]);const list=Array.isArray(data)?data:data?.items||((name==="settings"&&data)?[data]:[]);const prepare=(x:any)=>{const y={...x};if(name==="settings"){y.socialWhatsapp=x.social?.whatsapp||"";y.socialMessenger=x.social?.messenger||"";y.socialTelegram=x.social?.telegram||"";y.socialTiktok=x.social?.tiktok||"";}return y;};
+const save=async()=>{try{const payload={...form};delete payload._id;delete payload.createdAt;delete payload.updatedAt;delete payload.__v;delete payload.id;if(name==="settings"){payload.social={...(editing?.social||{}),whatsapp:payload.socialWhatsapp,messenger:payload.socialMessenger,telegram:payload.socialTelegram,tiktok:payload.socialTiktok};delete payload.socialWhatsapp;delete payload.socialMessenger;delete payload.socialTelegram;delete payload.socialTiktok;}if(name==="products"){if(!payload.category)delete payload.category;if(payload.category&&typeof payload.category==="object")payload.category=payload.category._id;payload.images=Array.isArray(payload.images)?payload.images:String(payload.images||"").split(",").map((x:string)=>x.trim()).filter(Boolean);payload.colors=Array.isArray(payload.colors)?payload.colors:String(payload.colors||"").split(",").map((x:string)=>x.trim()).filter(Boolean);payload.sizes=Array.isArray(payload.sizes)?payload.sizes:String(payload.sizes||"").split(",").map((x:string)=>x.trim()).filter(Boolean);payload.originalPrice=Number(payload.originalPrice||0);payload.salePrice=Number(payload.salePrice||payload.originalPrice||0);payload.weight=payload.weight==null||payload.weight===""?undefined:Number(payload.weight);payload.discountValue=payload.discountValue==null||payload.discountValue===""?undefined:Number(payload.discountValue);payload.discountPercentage=payload.discountPercentage==null||payload.discountPercentage===""?undefined:Number(payload.discountPercentage);payload.fixedDiscountAmount=payload.fixedDiscountAmount==null||payload.fixedDiscountAmount===""?undefined:Number(payload.fixedDiscountAmount);let desiredParentStock=Math.max(0,Number(payload.stock||0));const desiredVariants=variants.map(v=>({...v,stock:Math.max(0,Number(v.stock||0))}));delete payload.stock;payload.variants=desiredVariants.map(({stock,...v})=>v);const saved:any=await request(editing?"patch":"post",editing?endpoints[name]+"/"+editing._id:endpoints[name],payload);const oldVariants=editing?.variants||[];if(desiredVariants.length){for(const v of desiredVariants){const old=oldVariants.find((x:any)=>x._id&&v._id&&String(x._id)===String(v._id));const before=old?Number(old.stock||0):0;const change=Number(v.stock)-before;const sv=(saved.data.variants||[]).find((x:any)=>String(x.sku).toUpperCase()===String(v.sku).toUpperCase());if(change&&sv?._id)await request("post",`/inventory/${saved.data._id}/adjust`,{change,type:change>0?"RESTOCK":"CORRECTION",note:"Admin variant stock update",variantId:sv._id});}}else{const before=Number(editing?.stock||0);const change=desiredParentStock-before;if(change)await request("post",`/inventory/${saved.data._id}/adjust`,{change,type:change>0?"RESTOCK":"CORRECTION",note:"Admin product stock update"});}}else{await request(editing?"patch":"post",editing?endpoints[name]+"/"+editing._id:endpoints[name],payload);}setForm({active:true});setVariants([]);setEditing(null);load();}catch(e){setErr(apiError(e))}};
+const remove=async(id:string)=>{if(!confirm("Deactivate this record?"))return;try{await request("delete",endpoints[name]+"/"+id);load()}catch(e){setErr(apiError(e))}};
+const toggleActive=async(x:any)=>{try{const nextActive=x.active===false;await request("patch",endpoints[name]+"/"+x._id,{active:nextActive});load()}catch(e){setErr(apiError(e))}};
+const transition=async(id:string,status:string)=>{try{if(name==="payments")await request("patch","/payments/"+id+"/review",{status});else if(name==="commissions")await request("patch","/commissions/"+id,{status});else if(name==="orders")await request("patch","/orders/"+id+"/status",{status});else if(name==="delivery")await request("put","/delivery/"+id,{status});load()}catch(e){setErr(apiError(e))}};
+const edit=(x:any)=>{setEditing(x);setForm(prepare({...x,category:x.category?._id||x.category||"",images:Array.isArray(x.images)?x.images:[],colors:x.colors,sizes:x.sizes}));setVariants(Array.isArray(x.variants)?x.variants:[])};
+const uploadTo=(field:string,url:string)=>setForm((x:any)=>({...x,[field]:url}));
+return <AdminShell><main className="page">
+  <div className="section-head">
+    <div>
+      <Link to="/admin">← Admin</Link>
+      <h1>{name.replace(/-/g," ")}</h1>
+    </div>
+    <button className="btn ghost" onClick={load}>Refresh</button>
+  </div>
+
+  {err&&<div className="error">{err}</div>}
+
+  {endpoints[name]&&name==="products" ? (
+    <section className="card admin-form product-editor">
+      <div className="section-head">
+        <div>
+          <span className="eyebrow">CATALOG</span>
+          <h2>{editing?"Edit product":"Quick product"}</h2>
+          <p className="muted">Add a product quickly. Advanced options can be managed later.</p>
+        </div>
+      </div>
+
+      <div className="form-grid">
+        <label>
+          <span>Product name *</span>
+          <Input
+            field="name"
+            value={form.name}
+            onChange={v=>setForm({...form,name:v})}
+          />
+        </label>
+
+        <label>
+          <span>Category</span>
+          <select
+            value={form.category?._id||form.category||""}
+            onChange={e=>setForm({...form,category:e.target.value||undefined})}
+          >
+            <option value="">Uncategorized</option>
+            {categories.map((c:any)=>
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            )}
+          </select>
+        </label>
+
+        <label>
+          <span>Price (PKR) *</span>
+          <Input
+            field="originalPrice"
+            value={form.originalPrice}
+            onChange={v=>setForm({...form,originalPrice:v})}
+          />
+        </label>
+
+        <label>
+          <span>Sale price</span>
+          <Input
+            field="salePrice"
+            value={form.salePrice}
+            onChange={v=>setForm({...form,salePrice:v})}
+          />
+        </label>
+
+        <label>
+          <span>Stock</span>
+          <Input
+            field="stock"
+            value={form.stock}
+            onChange={v=>setForm({...form,stock:v})}
+          />
+        </label>
+
+        <label>
+          <span>Description</span>
+          <Input
+            field="description"
+            value={form.description}
+            onChange={v=>setForm({...form,description:v})}
+          />
+        </label>
+      </div>
+
+      <div className="card">
+        <div className="section-head">
+          <div>
+                    <div className="card" style={{gridColumn:"1 / -1"}}>
+          <div className="section-head">
+            <div>
+              <h3>Homepage placements</h3>
+              <p className="muted">Select every homepage section where this product should appear.</p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(form.featured)}
+                onChange={e=>setForm({...form,featured:e.target.checked})}
+              />
+              Featured Collection
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(form.newArrival)}
+                onChange={e=>setForm({...form,newArrival:e.target.checked})}
+              />
+              New Arrivals
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(form.bestSeller)}
+                onChange={e=>setForm({...form,bestSeller:e.target.checked})}
+              />
+              Best Sellers
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(form.limitedStock)}
+                onChange={e=>setForm({...form,limitedStock:e.target.checked})}
+              />
+              Limited Stock
+            </label>
+          </div>
+        </div>
+<h3>Product image</h3>
+            <p className="muted">Upload a product image.</p>
+          </div>
+
+          <UploadButton
+            onUploaded={u=>setForm((x:any)=>({
+              ...x,
+              images:[...(Array.isArray(x.images)?x.images:[]),u]
+            }))}
+          />
+        </div>
+
+        <div className="media-grid">
+          {(Array.isArray(form.images)?form.images:[]).map((url:string,i:number)=>
+            <div className="media-item" key={url+i}>
+              <img src={url} alt={`Product ${i+1}`}/>
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={()=>setForm((x:any)=>({
+                  ...x,
+                  images:(Array.isArray(x.images)?x.images:[]).filter((_:string,j:number)=>j!==i)
+                }))}
+              >
+                Remove
+              </button>
+            </div>
+          )}
+
+          {!Array.isArray(form.images)||!form.images.length&&
+            <div className="empty">No image uploaded.</div>
+          }
+        </div>
+      </div>
+
+      {categories.length===0&&
+        <div className="muted">
+          No categories available. Product will be saved as Uncategorized.
+        </div>
+      }
+
+      <div className="section-head">
+        <div>
+          <small className="muted">
+            Name and price are required. Category is optional.
+          </small>
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          {editing&&
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={()=>{
+                setEditing(null);
+                setForm({active:true});
+                setVariants([]);
+              }}
+            >
+              Cancel
+            </button>
+          }
+
+          <button className="btn" type="button" onClick={save}>
+            {editing?"Save changes":"Create product"}
+          </button>
+        </div>
+      </div>
+    </section>
+  ) : endpoints[name] ? (
+    <section className="card admin-form">
+      <h2>{editing?"Edit":"Create"} {name}</h2>
+
+      <div className="form-grid">
+        {(fields[name]||[]).map(([f,l]:any)=>
+          <label key={f}>
+            <span>{l}</span>
+            <Input
+              field={f}
+              value={form[f]}
+              onChange={v=>setForm({...form,[f]:v})}
+            />
+
+            {["image","thumbnail","logo"].includes(f)&&
+              <UploadButton onUploaded={u=>uploadTo(f,u)}/>
+            }
+
+            {f==="images"&&
+              <UploadButton
+                multiple
+                onUploaded={u=>setForm((x:any)=>({
+                  ...x,
+                  images:[...(Array.isArray(x.images)?x.images:[]),u]
+                }))}
+              />
+            }
+
+            {f==="video"&&
+              <UploadButton onUploaded={u=>uploadTo(f,u)}/>
+            }
+          </label>
+        )}
+      </div>
+
+      {name==="products"&&
+        <VariantManager variants={variants} onChange={setVariants}/>
+      }
+
+      <button className="btn" type="button" onClick={save}>
+        {editing?"Save changes":"Create"}
+      </button>
+
+      {editing&&
+        <button
+          className="btn ghost"
+          type="button"
+          onClick={()=>{
+            setEditing(null);
+            setForm({active:true});
+            setVariants([]);
+          }}
+        >
+          Cancel
+        </button>
+      }
+    </section>
+  ) : null}
+
+  <section className="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Record</th>
+          <th>Status</th>
+          <th>Value</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {list.map((x:any)=>
+          <tr key={x._id}>
+            <td>
+              <strong>
+                {x.name||x.title||x.orderNumber||x.transactionId||x.code||x._id}
+              </strong>
+
+              <small>
+                {x.email||x.user?.email||x.description?.slice?.(0,100)}
+              </small>
+
+              {name==="delivery"&&
+                <small>
+                  Recipient: {x.recipientName||"—"} •
+                  Confirmed: {x.recipientConfirmedAt
+                    ?new Date(x.recipientConfirmedAt).toLocaleString()
+                    :"No"}
+                  <br/>
+                  Delivery: {x.deliveryDate
+                    ?new Date(x.deliveryDate).toLocaleDateString()
+                    :"—"}
+                  • Notes: {x.notes||"—"}
+                  <br/>
+                  Proof: {x.proofUpload?"Uploaded":"—"} •
+                  Signature: {x.signatureUpload?"Uploaded":"—"}
+                </small>
+              }
+            </td>
+
+            <td>
+              {x.status||
+                (x.active===true?"ACTIVE":
+                x.active===false?"INACTIVE":"")}
+            </td>
+
+            <td>
+              {x.total!=null?money(x.total):
+               x.amount!=null?money(x.amount):
+               x.salePrice!=null?money(x.salePrice):
+               x.commissionValue??""}
+            </td>
+
+            <td>
+              {endpoints[name]&&
+                <button className="btn small" onClick={()=>edit(x)}>
+                  Edit
+                </button>
+              }
+
+              {endpoints[name]&&
+                (name==="banners"||name==="promo-images")?
+                <button
+                  className={x.active===false?"btn small":"btn ghost small"}
+                  onClick={()=>toggleActive(x)}
+                >
+                  {x.active===false?"Activate":"Deactivate"}
+                </button>
+                :
+                <button
+                  className="btn ghost small"
+                  onClick={()=>remove(x._id)}
+                >
+                  Deactivate
+                </button>
+              }
+
+              {name==="payments"&&x.status==="UNDER_REVIEW"&&<>
+                <button className="btn small" onClick={()=>transition(x._id,"APPROVED")}>
+                  Approve
+                </button>
+                <button className="btn ghost small" onClick={()=>transition(x._id,"REJECTED")}>
+                  Reject
+                </button>
+              </>}
+
+              {name==="payments"&&x.status==="APPROVED"&&
+                <button
+                  className="btn ghost small"
+                  onClick={()=>request("post","/payments/"+x._id+"/refund").then(load).catch(e=>setErr(apiError(e)))}
+                >
+                  Refund
+                </button>
+              }
+
+              {name==="payments"&&x.status==="PENDING"&&x.method?.type==="COD"&&
+                <button
+                  className="btn small"
+                  onClick={()=>request("post","/payments/"+x._id+"/collect-cod").then(load).catch(e=>setErr(apiError(e)))}
+                >
+                  Collect COD
+                </button>
+              }
+
+              {name==="commissions"&&x.status==="PENDING"&&
+                <button className="btn small" onClick={()=>transition(x._id,"APPROVED")}>
+                  Approve
+                </button>
+              }
+
+              {name==="commissions"&&x.status==="APPROVED"&&
+                <button className="btn small" onClick={()=>transition(x._id,"PAID")}>
+                  Pay
+                </button>
+              }
+
+              {name==="orders"&&x.status==="PAYMENT_APPROVED"&&
+                <button className="btn small" onClick={()=>transition(x._id,"PROCESSING")}>
+                  Process
+                </button>
+              }
+
+              {name==="orders"&&["PROCESSING","PACKED","SHIPPED","IN_TRANSIT","DELIVERED"].includes(x.status)&&
+                <select
+                  onChange={e=>e.target.value&&transition(x._id,e.target.value)}
+                  defaultValue=""
+                >
+                  <option value="">Update status</option>
+                  {["PACKED","SHIPPED","IN_TRANSIT","DELIVERED","COMPLETED"].map(st=>
+                    <option key={st} value={st}>{st}</option>
+                  )}
+                </select>
+              }
+
+              {name==="affiliates"&&
+                <button
+                  className="btn small"
+                  onClick={()=>request("patch","/affiliates/admin/"+x._id,{active:!x.active}).then(load).catch(e=>setErr(apiError(e)))}
+                >
+                  {x.active?"Disable":"Enable"}
+                </button>
+              }
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+
+    {!list.length&&
+      <div className="empty">No records found.</div>
+    }
+  </section>
+</main></AdminShell>;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+

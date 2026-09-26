@@ -1,0 +1,184 @@
+﻿import React,{useEffect,useState}from"react";
+import{Link}from"react-router-dom";
+import{request,apiError}from"../../api";
+import ProductCard from"../../components/ProductCard";
+import type{Banner,Category,Product,ProductListResponse,Video}from"../../types";
+
+type Section={title:string;items:Product[];link?:string};
+
+function State({loading,error,retry}:{loading:boolean;error?:string;retry?:()=>void}){
+ if(loading)return <div className="state">Loading NovaCart…</div>;
+ if(error)return <div className="state error">{error} {retry&&<button className="btn ghost"onClick={retry}>Retry</button>}</div>;
+ return null;
+}
+
+export function Home(){
+ const[banners,setBanners]=useState<Banner[]>([]);
+ const[promo,setPromo]=useState<any[]>([]);
+ const[featured,setFeatured]=useState<Product[]>([]);
+ const[newArrivals,setNewArrivals]=useState<Product[]>([]);
+ const[best,setBest]=useState<Product[]>([]);
+ const[limited,setLimited]=useState<Product[]>([]);
+ const[special,setSpecial]=useState<Product[]>([]);
+ const[categories,setCategories]=useState<Category[]>([]);
+ const[videos,setVideos]=useState<Video[]>([]);
+ const[err,setErr]=useState("");
+ const[slide,setSlide]=useState(0);
+
+ const load=()=>{
+  setErr("");
+  Promise.all([
+   request<Banner[]>("get","/banners"),
+   request<any[]>("get","/promo-images"),
+   request<ProductListResponse>("get","/products?limit=8&featured=true"),
+   request<ProductListResponse>("get","/products?limit=8&newArrival=true"),
+   request<ProductListResponse>("get","/products?limit=8&bestSeller=true"),
+   request<ProductListResponse>("get","/products?limit=8&limitedStock=true"),
+   request<ProductListResponse>("get","/products?limit=8&discounted=true&sort=discount"),
+   request<Category[]>("get","/categories"),
+   request<Video[]>("get","/videos")
+  ])
+  .then(([b,p,f,n,bs,l,sp,c,v])=>{
+   setBanners(b.data);
+   setPromo(p.data);
+   setFeatured(f.data.items);
+   setNewArrivals(n.data.items);
+   setBest(bs.data.items);
+   setLimited(l.data.items);
+   setSpecial(sp.data.items);
+   setCategories(c.data);
+   setVideos(v.data);
+  })
+  .catch(e=>setErr(apiError(e)));
+ };
+
+ useEffect(load,[]);
+
+ useEffect(()=>{
+  if(banners.length<2)return;
+  const t=setInterval(()=>setSlide(x=>(x+1)%banners.length),5000);
+  return()=>clearInterval(t);
+ },[banners.length]);
+
+ const banner=banners[slide];
+ const video=videos[0];
+
+ const sections:Section[]=[
+  {title:"Today's Special",items:special,link:"/products?discounted=true"},
+  {title:"New Arrivals",items:newArrivals,link:"/products?newArrival=true"},
+  {title:"Best Sellers",items:best,link:"/products?bestSeller=true"},
+  {title:"Limited Stock",items:limited,link:"/products?limitedStock=true"},
+  {title:"Featured Collection",items:featured,link:"/products?featured=true"}
+ ];
+
+ return (
+  <main className="home-page">
+   <State error={err}retry={load}loading={!featured.length&&!newArrivals.length&&!err}/>
+
+   <section className="hero-premium">
+    {banner?.image&&<img src={banner.image}alt={banner.title||"NovaCart promotion"}/>}
+    <div className="hero-overlay"></div>
+    <div className="hero-content">
+     <span className="eyebrow">NOVACART COLLECTION</span>
+     <h1>{banner?.title||"Everything you want."}<br/><em>Beautifully selected.</em></h1>
+     {banner?.subtitle&&<p>{banner.subtitle}</p>}
+     {!banner?.subtitle&&<p>Discover carefully selected products, exclusive offers and a premium shopping experience.</p>}
+     <div className="hero-actions">
+      <Link className="btn hero-btn"to={banner?.buttonUrl||"/products"}>{banner?.buttonText||"Explore collection"} <span>→</span></Link>
+      <Link className="hero-text-link"to="/categories">Browse categories</Link>
+     </div>
+    </div>
+
+    {banners.length>1&&
+     <div className="hero-dots">
+      {banners.map((_,i)=><button key={i}aria-label={`Go to slide ${i+1}`}className={i===slide?"active":""}onClick={()=>setSlide(i)}/>)}
+     </div>
+    }
+   </section>
+
+   <section className="trust-strip">
+    <div><strong>✓</strong><span><b>Secure checkout</b><small>Protected payments</small></span></div>
+    <div><strong>↗</strong><span><b>Reliable delivery</b><small>Track your order</small></span></div>
+    <div><strong>↺</strong><span><b>Easy support</b><small>We're here to help</small></span></div>
+    <div><strong>◆</strong><span><b>Curated products</b><small>Quality-focused shopping</small></span></div>
+   </section>
+
+   {categories.length>0&&
+    <section className="section home-section">
+     <div className="section-head premium-head">
+      <div><span className="eyebrow">EXPLORE</span><h2>Shop by category</h2></div>
+      <Link className="view-link"to="/categories">View all →</Link>
+     </div>
+     <div className="category-grid">
+      {categories.slice(0,6).map(x=>
+       <Link className="category-tile"key={x._id}to={`/products/${x.slug}`}>
+        {x.image&&<img loading="lazy"src={x.image}alt={x.name}/>}
+        <span>{x.name}</span>
+        <small>Explore →</small>
+       </Link>
+      )}
+     </div>
+    </section>
+   }
+
+   {promo.length>0&&
+    <section className="section home-section">
+     <div className="section-head premium-head">
+      <div><span className="eyebrow">CURATED FOR YOU</span><h2>Featured offers</h2></div>
+      <Link className="view-link"to="/products?discounted=true">Shop offers →</Link>
+     </div>
+     <div className="promo-grid premium-promo-grid">
+      {promo.slice(0,3).map(x=>
+       <article className="promo-card premium-promo"key={x._id}>
+        {x.image&&<img loading="lazy"src={x.image}alt={x.title||"Offer"}/>}
+        <div>
+         <span className="eyebrow">SPECIAL OFFER</span>
+         <h3>{x.title}</h3>
+         {x.description&&<p>{x.description}</p>}
+         {x.buttonUrl&&<a className="btn"href={x.buttonUrl}>{x.buttonText||"Explore"} →</a>}
+        </div>
+       </article>
+      )}
+     </div>
+    </section>
+   }
+
+   {sections.map(sec=>
+    <section className="section home-section"key={sec.title}>
+     <div className="section-head premium-head">
+      <div><span className="eyebrow">NOVACART</span><h2>{sec.title}</h2></div>
+      <Link className="view-link"to={sec.link||"/products"}>View all →</Link>
+     </div>
+
+     {sec.items.length>0
+      ?<div className="grid premium-product-grid">{sec.items.map(x=><ProductCard key={x._id}p={x}/>)}</div>
+      :<div className="empty">Products will appear here when available.</div>}
+    </section>
+   )}
+
+   {video&&
+    <section className="section home-section">
+     <div className="video-feature">
+      <div className="video-copy">
+       <span className="eyebrow">WATCH & DISCOVER</span>
+       <h2>{video.title||"Discover NovaCart"}</h2>
+       {video.description&&<p>{video.description}</p>}
+       <Link className="btn"to="/products">Shop collection →</Link>
+      </div>
+      <video controls poster={video.thumbnail}src={video.url}className="featured-video"/>
+     </div>
+    </section>
+   }
+
+   <section className="section reseller-banner">
+    <div>
+     <span className="eyebrow">GROW WITH NOVACART</span>
+     <h2>Want to earn while you share?</h2>
+     <p>Explore the NovaCart affiliate and reseller experience.</p>
+    </div>
+    <Link className="btn"to="/affiliate">Explore affiliate →</Link>
+   </section>
+  </main>
+ );
+}
+

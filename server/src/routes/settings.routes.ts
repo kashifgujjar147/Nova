@@ -1,0 +1,1 @@
+import {Router} from 'express'; import * as c from '../controllers/settings.controller'; import {auth,roles} from '../middleware/auth'; import {validate} from '../middleware/validation'; import {settingsSchema} from '../validators/common'; const r=Router(); r.get('/',c.get); r.patch('/',auth,roles('admin','super_admin'),validate(settingsSchema),c.update); export default r;

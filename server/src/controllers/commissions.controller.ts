@@ -1,0 +1,1 @@
+import * as s from '../services/commissions.service';import{ok}from'../utils/response';export const mine=async(q:any,r:any)=>ok(r,await s.list(q.user.id));export const all=async(_q:any,r:any)=>ok(r,await s.list());export const transition=async(q:any,r:any)=>ok(r,await s.transition(q.params.id,q.body.status,q.body.reason,q.user.id));

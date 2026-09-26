@@ -1,0 +1,2 @@
+import * as s from "../services/reviews.service";import {Review} from "../models";import{ok}from"../utils/response";
+export const list=async(q:any,r:any)=>ok(r,await s.list(q.params.productId));export const create=async(q:any,r:any)=>ok(r,await s.create({...q.body,user:q.user.id,product:q.params.productId}),"Review submitted",201);export const moderate=async(q:any,r:any)=>ok(r,await s.moderate(q.params.id,q.body.status,q.body.note));export const adminAll=async(_q:any,r:any)=>ok(r,await Review.find().populate("user product").sort({createdAt:-1}).limit(500));
