@@ -1,4 +1,4 @@
-﻿import axios, {
+import axios, {
   AxiosError,
   InternalAxiosRequestConfig
 } from "axios";
@@ -75,11 +75,47 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+const API_ORIGIN = String(
+  import.meta.env.VITE_API_URL ||
+    "https://novacartserver-production.up.railway.app/api"
+)
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
+
+const normalizeUploadUrls = <T>(value: T): T => {
+  if (typeof value === "string") {
+    return value.replace(
+      /(^|https?:\/\/[^/]+)?\/api\/uploads\/([a-f\d]{24})(?=$|[?#])/i,
+      (_match, _origin, id) => `${API_ORIGIN}/api/uploads/${id}`
+    ) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeUploadUrls(item)) as T;
+  }
+
+  if (value && typeof value === "object") {
+    const output: Record<string, unknown> = {};
+
+    for (const [key, item] of Object.entries(
+      value as Record<string, unknown>
+    )) {
+      output[key] = normalizeUploadUrls(item);
+    }
+
+    return output as T;
+  }
+
+  return value;
+};
 /*
  * Response / recovery layer.
  */
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    response.data = normalizeUploadUrls(response.data);
+    return response;
+  },
 
   async (error: AxiosError) => {
     const cfg = error.config as RetryConfig | undefined;
