@@ -68,7 +68,7 @@ export const couponCreateSchema=z.object({body:z.object({code:z.string().trim().
 export const couponUpdateSchema=z.object({body:couponCreateSchema.shape.body.partial().strict(),query:empty,params:z.object({id:oid}).strict()});
 export const couponValidateSchema=z.object({body:z.object({code:z.string().trim().min(1).max(80),subtotal:z.number().min(0)}).strict(),query:empty,params:empty});
 
-export const bannerCreateSchema=z.object({body:z.object({title:z.string().trim().min(1).max(200),subtitle:z.string().max(1000).optional(),image:z.string().max(2000).optional(),buttonText:z.string().max(100).optional(),buttonUrl:z.string().max(2000).optional(),active:z.boolean().optional(),sortOrder:z.number().int().min(0).max(100000).optional(),startDate:z.coerce.date().optional(),endDate:z.coerce.date().optional()}).strict(),query:empty,params:empty});
+export const bannerCreateSchema=z.object({body:z.object({title:z.string().trim().max(200).optional(),subtitle:z.string().max(1000).optional(),image:z.string().max(2000).optional(),buttonText:z.string().max(100).optional(),buttonUrl:z.string().max(2000).optional(),active:z.boolean().optional(),sortOrder:z.number().int().min(0).max(100000).optional(),startDate:z.coerce.date().optional(),endDate:z.coerce.date().optional()}).strict(),query:empty,params:empty});
 export const bannerUpdateSchema=bannerCreateSchema.extend({body:bannerCreateSchema.shape.body.partial().strict(),params:z.object({id:oid}).strict()});
 
 export const paymentMethodCreateSchema=z.object({body:z.object({name:z.string().trim().min(1).max(120),type:z.string().trim().min(1).max(40).optional(),instructions:z.string().max(3000).optional(),accountNumber:z.string().max(200).optional(),accountTitle:z.string().max(200).optional(),requiresTransactionId:z.boolean().optional(),requiresReceipt:z.boolean().optional(),requiresManualReview:z.boolean().optional(),active:z.boolean().optional(),ordering:z.number().int().min(0).max(100000).optional()}).strict(),query:empty,params:empty});
@@ -90,4 +90,5 @@ export const notificationIdSchema=idParam("id");
 export const reviewModerateSchema=z.object({body:reviewSchema.shape.body,query:empty,params:z.object({id:oid}).strict()});
 
 export const paymentReviewSchema=z.object({body:reviewSchema.shape.body,query:empty,params:z.object({id:oid}).strict()});
+
 

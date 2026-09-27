@@ -1,5 +1,5 @@
-import * as s from "../services/banners.service";import{ok}from"../utils/response";import{record}from"../services/audit.service";
+﻿import * as s from "../services/banners.service";import{ok}from"../utils/response";import{record}from"../services/audit.service";
 export const list=async(_q:any,r:any)=>ok(r,await s.list());export const all=async(_q:any,r:any)=>ok(r,await s.all());
-export const create=async(q:any,r:any)=>{const x=await s.create(q.body);await record(q.user.id,"CREATE","Banner",x._id.toString());return ok(r,x,"Created",201)};
+export const create=async(q:any,r:any)=>{const b=q.body||{};const hasContent=["title","subtitle","image","buttonText","buttonUrl"].some((k:string)=>typeof b[k]==="string"&&b[k].trim().length>0);if(!hasContent)return r.status(400).json({success:false,message:"Banner must contain at least an image, title, subtitle, button text, or button URL"});const x=await s.create(b);await record(q.user.id,"CREATE","Banner",x._id.toString());return ok(r,x,"Created",201)};
 export const update=async(q:any,r:any)=>{const x=await s.update(q.params.id,q.body);await record(q.user.id,"UPDATE","Banner",q.params.id);return ok(r,x)};
 export const remove=async(q:any,r:any)=>{const x=await s.remove(q.params.id);await record(q.user.id,"DELETE","Banner",q.params.id);return ok(r,x)};
