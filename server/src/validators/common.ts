@@ -5,7 +5,7 @@ const variant=z.object({variantId:oid,sku:z.string().max(120).optional(),name:z.
 export const registerSchema=z.object({body:z.object({name:z.string().trim().min(2).max(120),email:z.string().email(),phone:z.string().max(40).optional(),password:z.string().min(8).max(128)}),query:empty,params:empty});
 export const loginSchema=z.object({body:z.object({email:z.string().email(),password:z.string().min(1)}),query:empty,params:empty});
 export const cartSchema=z.object({body:z.object({items:z.array(z.object({product:oid,quantity:z.number().int().min(1).max(999),variant:variant.optional()}))}),query:empty,params:empty});
-export const checkoutSchema=z.object({body:z.object({paymentMethod:oid,address:z.object({fullName:z.string().trim().min(2).max(120),phone:z.string().trim().min(5).max(40),address:z.string().trim().min(5).max(500),city:z.string().trim().min(2).max(100),province:z.string().trim().max(100).optional(),postalCode:z.string().trim().max(20).optional(),country:z.string().trim().max(100).default("Pakistan")}),couponCode:z.string().trim().max(80).optional()}),query:empty,params:empty});
+export const checkoutSchema=z.object({body:z.object({paymentMethod:oid,address:z.object({fullName:z.string().trim().min(2).max(120),phone:z.string().trim().min(5).max(40),email:z.string().email().optional(),address:z.string().trim().min(5).max(500),city:z.string().trim().min(2).max(100),province:z.string().trim().max(100).optional(),postalCode:z.string().trim().max(20).optional(),country:z.string().trim().max(100).default("Pakistan")}),couponCode:z.string().trim().max(80).optional()}),query:empty,params:empty});
 export const paymentSchema=z.object({body:z.object({order:oid,method:oid,amount:z.number().positive(),transactionId:z.string().trim().min(3).max(120).optional(),paymentTime:z.coerce.date().optional(),receiptUrl:z.string().url().optional(),note:z.string().max(1000).optional()}),query:empty,params:empty});
 export const statusSchema=z.object({body:z.object({status:z.string().min(1).max(60),reason:z.string().max(1000).optional(),note:z.string().max(1000).optional()}),query:empty,params:empty});
 export const resetRequestSchema=z.object({body:z.object({email:z.string().email()}),query:empty,params:empty});export const resetSchema=z.object({body:z.object({token:z.string().min(20),password:z.string().min(8).max(128)}),query:empty,params:empty});export const verifySchema=z.object({body:z.object({token:z.string().min(20)}),query:empty,params:empty});
@@ -90,5 +90,6 @@ export const notificationIdSchema=idParam("id");
 export const reviewModerateSchema=z.object({body:reviewSchema.shape.body,query:empty,params:z.object({id:oid}).strict()});
 
 export const paymentReviewSchema=z.object({body:reviewSchema.shape.body,query:empty,params:z.object({id:oid}).strict()});
+
 
 

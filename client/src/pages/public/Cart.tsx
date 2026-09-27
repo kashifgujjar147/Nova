@@ -1,2 +1,121 @@
-import React,{useEffect,useMemo,useState}from"react";import{Link,useNavigate,useParams}from"react-router-dom";import{request,apiError}from"../../api";import ProductCard from"../../components/ProductCard";import{money}from"../../components/Layout";import type{CartItem,CartResponse}from"../../types";
-export function Cart(){const[c,setC]=useState<CartResponse>(),[err,setErr]=useState("");const load=()=>request<CartResponse>("get","/cart").then(r=>setC(r.data)).catch(e=>setErr(apiError(e)));useEffect(()=>{void load()},[]);if(!localStorage.token)return <main className="page"><h1>Your cart</h1><Link to="/login">Login to continue</Link></main>;const save=async(items:CartItem[])=>{try{const r=await request<CartResponse>("put","/cart",{items});setC(r.data)}catch(e){setErr(apiError(e))}};return <main className="page"><div className="section-head"><h1>Your cart</h1><span>{c?.items?.length||0} items</span></div>{err&&<div className="error">{err}</div>}{!c?.items?.length?<div className="empty">Your cart is empty. <Link to="/products">Continue shopping</Link></div>:<>{c.items.map((x:CartItem,i:number)=>{const product=typeof x.product==="string"?undefined:x.product;return <div className="cart-row"key={i}><div><strong>{product?.name||"Product"}</strong><p>{x.variant?.name||""} {x.variant?.attributes?Object.entries(x.variant.attributes).map(([k,v])=>`${k}: ${v}`).join(", "):""}</p></div><div className="qty"><button onClick={()=>save(c.items.map((a:CartItem,j:number)=>j===i?{...a,quantity:Math.max(1,a.quantity-1)}:a))}>−</button><span>{x.quantity}</span><button onClick={()=>save(c.items.map((a:CartItem,j:number)=>j===i?{...a,quantity:a.quantity+1}:a))}>+</button></div><button className="btn ghost"onClick={()=>save(c.items.filter((_:CartItem,j:number)=>j!==i))}>Remove</button></div>})}<Link className="btn"to="/checkout">Checkout →</Link></>}</main>}
+﻿import React,{useEffect,useState}from"react";
+import{Link}from"react-router-dom";
+import{request,apiError}from"../../api";
+import type{CartItem,CartResponse}from"../../types";
+
+export function Cart(){
+  const[c,setC]=useState<CartResponse>();
+  const[err,setErr]=useState("");
+  const[loading,setLoading]=useState(true);
+
+  const loggedIn=Boolean(localStorage.token);
+
+  const load=()=>{
+    setLoading(true);
+
+    return request<CartResponse>(
+      "get",
+      loggedIn?"/cart":"/cart/guest"
+    )
+    .then(r=>setC(r.data))
+    .catch(e=>setErr(apiError(e)))
+    .finally(()=>setLoading(false));
+  };
+
+  useEffect(()=>{void load()},[]);
+
+  const save=async(items:CartItem[])=>{
+    try{
+      const r=await request<CartResponse>(
+        "put",
+        loggedIn?"/cart":"/cart/guest",
+        {items}
+      );
+      setC(r.data);
+    }catch(e){
+      setErr(apiError(e));
+    }
+  };
+
+  if(loading)
+    return <main className="page"><p>Loading cart…</p></main>;
+
+  return (
+    <main className="page">
+      <div className="section-head">
+        <h1>Your cart</h1>
+        <span>{c?.items?.length||0} items</span>
+      </div>
+
+      {err&&<div className="error">{err}</div>}
+
+      {!c?.items?.length ? (
+        <div className="empty">
+          Your cart is empty.{" "}
+          <Link to="/products">Continue shopping</Link>
+        </div>
+      ):(
+        <>
+          {c.items.map((x:CartItem,i:number)=>{
+            const product=
+              typeof x.product==="string"
+                ?undefined
+                :x.product;
+
+            return (
+              <div className="cart-row" key={i}>
+                <div>
+                  <strong>{product?.name||"Product"}</strong>
+                  <p>
+                    {x.variant?.name||""}{" "}
+                    {x.variant?.attributes
+                      ?Object.entries(x.variant.attributes)
+                        .map(([k,v])=>`${k}: ${v}`)
+                        .join(", ")
+                      :""
+                    }
+                  </p>
+                </div>
+
+                <div className="qty">
+                  <button onClick={()=>
+                    save(c.items.map((a:CartItem,j:number)=>
+                      j===i
+                        ?{...a,quantity:Math.max(1,a.quantity-1)}
+                        :a
+                    ))
+                  }>−</button>
+
+                  <span>{x.quantity}</span>
+
+                  <button onClick={()=>
+                    save(c.items.map((a:CartItem,j:number)=>
+                      j===i
+                        ?{...a,quantity:a.quantity+1}
+                        :a
+                    ))
+                  }>+</button>
+                </div>
+
+                <button
+                  className="btn ghost"
+                  onClick={()=>
+                    save(c.items.filter(
+                      (_:CartItem,j:number)=>j!==i
+                    ))
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+
+          <Link className="btn" to="/checkout">
+            Checkout →
+          </Link>
+        </>
+      )}
+    </main>
+  );
+}

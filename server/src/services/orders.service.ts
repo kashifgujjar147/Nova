@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+﻿import mongoose from "mongoose";
 import { Order, Product, InventoryTransaction, Commission, Affiliate, Payment, Notification, AffiliateConversion } from "../models";
 const transitions:any={PENDING:["PAYMENT_REVIEW","PAYMENT_APPROVED","CANCELLED"],PAYMENT_REVIEW:["PAYMENT_APPROVED","PENDING","CANCELLED"],PAYMENT_APPROVED:["PROCESSING","CANCELLED"],PROCESSING:["PACKED","CANCELLED"],PACKED:["SHIPPED"],SHIPPED:["IN_TRANSIT"],IN_TRANSIT:["DELIVERED"],DELIVERED:["COMPLETED"],COMPLETED:[],CANCELLED:[],REFUNDED:[]};
 const fail=(m:string,s=400)=>Object.assign(new Error(m),{status:s});
@@ -17,3 +17,9 @@ export async function status(id:string,s:string,actor:string,role?:string){
   }
   const before=o.status;o.status=s;o.statusHistory.push({status:s,at:new Date(),actor});o=await o.save({session});await record(actor,"ORDER_STATUS","Order",o._id.toString(),{before,after:s},undefined,session);await Notification.create([{user:o.user,type:"ORDER_STATUS",title:"Order updated",message:`Order ${o.orderNumber} is now ${s.replaceAll("_"," ").toLowerCase()}.`,data:{orderId:o._id,status:s}}],{session});
  });return o}finally{await session.endSession();}}
+
+export const getGuest=(id:string,guestTokenHash:string)=>
+  Order.findOne({
+    _id:id,
+    guestTokenHash
+  }).populate("paymentMethod");

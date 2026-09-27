@@ -1,3 +1,203 @@
-import React,{useEffect,useState}from"react";import{useNavigate,useParams}from"react-router-dom";import{request,apiError}from"../../api";import{money}from"../../components/Layout";import type{OrderDetailResponse,PaymentMethod,UploadResponse}from"../../types";
-export function Payment(){const{id}=useParams(),[m,setM]=useState<PaymentMethod[]>([]),[f,setF]=useState<Record<string,string>>({}),[order,setOrder]=useState<OrderDetailResponse>(),[err,setErr]=useState(""),[loading,setLoading]=useState(false),[file,setFile]=useState<File>(),nav=useNavigate();useEffect(()=>{Promise.all([request<PaymentMethod[]>("get","/payment-methods"),request<OrderDetailResponse>("get","/orders/"+id)]).then(([a,b])=>{setM(a.data);setOrder(b.data)}).catch(e=>setErr(apiError(e)))},[id]);const selected=m.find(x=>x._id===f.method);const submit=async(e:any)=>{e.preventDefault();if(!order){setErr("Order details are not available.");return}setLoading(true);try{let receiptUrl=f.receiptUrl||undefined;if(selected?.requiresReceipt&&file){const reader=new FileReader();const data=await new Promise<string>((resolve,reject)=>{reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file)});const up=await request<UploadResponse>("post","/uploads",{kind:"PAYMENT_RECEIPT",filename:file.name,mimeType:file.type,data});receiptUrl=up.data.url}await request("post","/payments",{order:id,method:f.method,amount:Number(order.total),transactionId:f.transactionId||undefined,paymentTime:f.paymentTime||undefined,receiptUrl,note:f.note||undefined},{"Idempotency-Key":crypto.randomUUID()});nav("/account/orders/"+id)}catch(e){setErr(apiError(e))}finally{setLoading(false)}};return <main className="page narrow"><h1>Payment for {order?.orderNumber||"order"}</h1><p>Total: <strong>{money(order?.total ?? 0)}</strong></p>{err&&<div className="error">{err}</div>}<form onSubmit={submit}><select required value={f.method||""}onChange={e=>setF({...f,method:e.target.value})}><option value="">Method</option>{m.map(x=><option key={x._id}value={x._id}>{x.name}</option>)}</select>{selected?.instructions&&<div className="card"><p>{selected.instructions}</p><p>{selected.accountTitle} {selected.accountNumber}</p></div>}{selected?.requiresTransactionId&&<><input required placeholder="Transaction ID"onChange={e=>setF({...f,transactionId:e.target.value})}/><input type="datetime-local"onChange={e=>setF({...f,paymentTime:e.target.value})}/><textarea placeholder="Payment note (optional)"onChange={e=>setF({...f,note:e.target.value})}/></>} {selected?.requiresReceipt&&<><input required type="file"accept="image/jpeg,image/png,image/webp,application/pdf"onChange={e=>setFile(e.target.files?.[0])}/><small>Max {Math.round(5*1024*1024/1024/1024)}MB. Images/PDF only.</small></>}<button className="btn"disabled={loading}>{loading?"Submitting…":"Submit payment"}</button></form></main>}
+﻿import React,{useEffect,useState}from"react";
+import{useParams}from"react-router-dom";
+import{request,apiError}from"../../api";
+import{money}from"../../components/Layout";
+import type{
+  OrderDetailResponse,
+  PaymentMethod
+}from"../../types";
 
+export function Payment(){
+  const{id}=useParams();
+
+  const[m,setM]=useState<PaymentMethod[]>([]);
+  const[f,setF]=useState<Record<string,string>>({});
+  const[order,setOrder]=useState<OrderDetailResponse>();
+  const[err,setErr]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[done,setDone]=useState(false);
+
+  const loggedIn=Boolean(localStorage.token);
+
+  useEffect(()=>{
+    Promise.all([
+      request<PaymentMethod[]>(
+        "get",
+        "/payment-methods"
+      ),
+      request<OrderDetailResponse>(
+        "get",
+        loggedIn
+          ?"/orders/"+id
+          :"/orders/guest/"+id
+      )
+    ])
+    .then(([a,b])=>{
+      setM(a.data);
+      setOrder(b.data);
+    })
+    .catch(e=>setErr(apiError(e)));
+  },[id]);
+
+  const selected=m.find(x=>x._id===f.method);
+
+  const submit=async(e:any)=>{
+    e.preventDefault();
+
+    if(!order){
+      setErr("Order details are not available.");
+      return;
+    }
+
+    setLoading(true);
+
+    try{
+      const url=loggedIn
+        ?"/payments"
+        :"/payments/guest";
+
+      await request(
+        "post",
+        url,
+        {
+          order:id,
+          method:f.method,
+          amount:Number(order.total),
+          transactionId:f.transactionId||undefined,
+          paymentTime:f.paymentTime||undefined,
+          note:f.note||undefined
+        },
+        {
+          "Idempotency-Key":crypto.randomUUID()
+        }
+      );
+
+      setDone(true);
+    }catch(e){
+      setErr(apiError(e));
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  if(done){
+    return (
+      <main className="page narrow">
+        <div className="card">
+          <h1>Order received ✓</h1>
+          <p>
+            Your order{" "}
+            <strong>{order?.orderNumber}</strong>{" "}
+            has been received successfully.
+          </p>
+
+          {!loggedIn&&order&&(
+            <p>
+              Save your order number for tracking.
+              You can create an account later and continue
+              managing your orders from your account.
+            </p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="page narrow">
+      <h1>
+        Payment for {order?.orderNumber||"order"}
+      </h1>
+
+      <p>
+        Total:
+        {" "}
+        <strong>{money(order?.total??0)}</strong>
+      </p>
+
+      {err&&<div className="error">{err}</div>}
+
+      <form onSubmit={submit}>
+        <select
+          required
+          value={f.method||""}
+          onChange={e=>
+            setF({...f,method:e.target.value})
+          }
+        >
+          <option value="">Method</option>
+
+          {m.map(x=>
+            <option key={x._id} value={x._id}>
+              {x.name}
+            </option>
+          )}
+        </select>
+
+        {selected?.instructions&&(
+          <div className="card">
+            <p>{selected.instructions}</p>
+            <p>
+              {selected.accountTitle}{" "}
+              {selected.accountNumber}
+            </p>
+          </div>
+        )}
+
+        {selected?.requiresTransactionId&&(
+          <>
+            <input
+              required
+              placeholder="Transaction ID"
+              onChange={e=>
+                setF({...f,transactionId:e.target.value})
+              }
+            />
+
+            <input
+              type="datetime-local"
+              onChange={e=>
+                setF({...f,paymentTime:e.target.value})
+              }
+            />
+
+            <textarea
+              placeholder="Payment note (optional)"
+              onChange={e=>
+                setF({...f,note:e.target.value})
+              }
+            />
+          </>
+        )}
+
+        {selected?.requiresReceipt&&(
+          <div className="card">
+            <p>
+              This payment method requires a receipt upload.
+            </p>
+
+            {!loggedIn&&(
+              <p>
+                Please login to upload the receipt securely,
+                or choose another available payment method.
+              </p>
+            )}
+          </div>
+        )}
+
+        <button
+          className="btn"
+          disabled={
+            loading||
+            !order||
+            Boolean(selected?.requiresReceipt&&!loggedIn)
+          }
+        >
+          {loading
+            ?"Submitting…"
+            :"Submit payment"}
+        </button>
+      </form>
+    </main>
+  );
+}

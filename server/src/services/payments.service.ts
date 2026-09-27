@@ -1,4 +1,4 @@
-import mongoose from "mongoose";import crypto from "crypto";
+﻿import mongoose from "mongoose";import crypto from "crypto";
 import {Payment,Order,PaymentMethod,Notification,Upload,User} from "../models";
 import {createForOrder,reverseCommission} from "./commissions.service";import {record} from "./audit.service";import {roundMoney} from "../utils/money";
 const fail=(m:string,s=400)=>Object.assign(new Error(m),{status:s});
@@ -25,3 +25,140 @@ export async function collectCOD(id:string,actor:string){
  }); return p;}finally{await session.endSession();}
 }
 export const list=(f:any={})=>Payment.find(f).populate("order user method").sort({createdAt:-1});
+
+export async function submitGuest(
+  guestTokenHash:string,
+  d:any,
+  idempotencyKey?:string
+){
+  const session=await mongoose.startSession();
+  let p:any;
+
+  try{
+    await session.withTransaction(async()=>{
+      const fingerprint=idempotencyKey
+        ?crypto.createHash("sha256")
+          .update(JSON.stringify({
+            order:d.order,
+            method:d.method,
+            amount:roundMoney(Number(d.amount)),
+            transactionId:d.transactionId||null,
+            receiptUrl:d.receiptUrl||null
+          }))
+          .digest("hex")
+        :undefined;
+
+      if(idempotencyKey){
+        const prior:any=await Payment.findOne({
+          guestTokenHash,
+          idempotencyKey
+        }).session(session);
+
+        if(prior){
+          if(
+            prior.idempotencyFingerprint &&
+            prior.idempotencyFingerprint!==fingerprint
+          )
+            throw fail(
+              "Idempotency key was already used for a different payment request",
+              409
+            );
+
+          p=prior;
+          return;
+        }
+      }
+
+      const o:any=await Order.findOne({
+        _id:d.order,
+        guestTokenHash
+      }).session(session);
+
+      if(!o)throw fail("Order not found",404);
+
+      if(["REFUNDED","CANCELLED","COMPLETED"].includes(o.status))
+        throw fail("Order cannot accept payment",409);
+
+      const m:any=await PaymentMethod.findOne({
+        _id:d.method,
+        active:true
+      }).session(session);
+
+      if(!m)throw fail("Payment method unavailable",400);
+
+      if(
+        roundMoney(Number(d.amount))!==roundMoney(Number(o.total))
+      )
+        throw fail("Payment amount does not match order total",400);
+
+      if(m.requiresTransactionId&&!d.transactionId)
+        throw fail("Transaction ID is required",400);
+
+      if(m.requiresReceipt&&!d.receiptUrl)
+        throw fail(
+          "This payment method requires a receipt. Please login to upload the receipt securely.",
+          400
+        );
+
+      if(m.type==="COD"&&(d.transactionId||d.receiptUrl))
+        throw fail("COD does not accept transaction details",400);
+
+      if(await Payment.findOne({
+        order:o._id,
+        status:{$in:["PENDING","UNDER_REVIEW","APPROVED"]}
+      }).session(session))
+        throw fail("An active payment already exists",409);
+
+      const status=
+        m.type==="COD"
+          ?"PENDING"
+          :(m.requiresManualReview?"UNDER_REVIEW":"PENDING");
+
+      p=(await Payment.create([{
+        order:o._id,
+        guestTokenHash,
+        method:m._id,
+        amount:roundMoney(d.amount),
+        transactionId:d.transactionId,
+        paymentTime:d.paymentTime||new Date(),
+        receiptUrl:d.receiptUrl,
+        note:d.note,
+        status,
+        idempotencyKey,
+      }],{session}))[0];
+
+      if(status==="UNDER_REVIEW"){
+        o.status="PAYMENT_REVIEW";
+        o.statusHistory.push({
+          status:"PAYMENT_REVIEW",
+          at:new Date()
+        });
+        await o.save({session});
+      }
+
+      const admins:any[]=await User.find({
+        role:{$in:["admin","super_admin"]},
+        active:true
+      }).select("_id").session(session);
+
+      if(admins.length&&status==="UNDER_REVIEW"){
+        await Notification.create(
+          admins.map(a=>({
+            user:a._id,
+            type:"PAYMENT_REVIEW_REQUIRED",
+            title:"Guest payment verification required",
+            message:`Payment for ${o.orderNumber} is awaiting review.`,
+            data:{orderId:o._id,paymentId:p._id}
+          })),
+          {session}
+        );
+      }
+    });
+
+    return p;
+  }finally{
+    await session.endSession();
+  }
+}
+
+

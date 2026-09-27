@@ -21,3 +21,259 @@ export async function createOrder(userId:string,input:any,rawAttribution?:string
  if(coupon)await reserveUsage(coupon._id,userId,created._id,session);await Cart.updateOne({user:userId},{$set:{items:[]}},{session});await Notification.create([{user:userId,type:"ORDER_PLACED",title:"Order placed",message:`Order ${created.orderNumber} was created.`,data:{orderId:created._id}}],{session});const admins:any[]=await User.find({role:{$in:["admin","super_admin"]},active:true}).select("_id").session(session);if(admins.length)await Notification.create(admins.map(a=>({user:a._id,type:"NEW_ORDER",title:"New order received",message:`New order ${created.orderNumber} requires processing/payment review.`,data:{orderId:created._id}})),{session});
  });return created;}catch(e:any){if(e?.code===11000&&idempotencyKey){const prior:any=await Order.findOne({user:userId,idempotencyKey});if(prior){if(prior.idempotencyFingerprint&&prior.idempotencyFingerprint!==idempotencyFingerprint)throw fail("Idempotency key was already used for a different checkout request",409);return prior;}}throw e;}finally{await session.endSession();}}
 export async function previewOrder(userId:string,couponCode?:string){const cart:any=await Cart.findOne({user:userId}).populate("items.product");if(!cart?.items?.length)throw fail("Cart is empty");const settings:any=await SiteSettings.findOne();let subtotal=0;const items:any[]=[];for(const ci of cart.items){const p:any=ci.product;if(!p?.active||!p.availability)throw fail("A product is unavailable",409);const qty=Number(ci.quantity);const v=cartVariant(ci.variant,p);if(v&&v.stock<qty)throw fail(`Insufficient variant stock for ${p.name}`,409);if(!v&&p.stock<qty)throw fail(`Insufficient stock for ${p.name}`,409);const unit=effectivePrice(p,v);const line=roundMoney(unit*qty);subtotal=roundMoney(subtotal+line);items.push({product:p._id,name:p.name,sku:v?.sku||p.sku,quantity:qty,unitPrice:unit,lineTotal:line,variantId:v?._id});}let discount=0,coupon:any;if(couponCode){const productIds=items.map(i=>i.product.toString());const cats:any[]=await Product.find({_id:{$in:items.map(i=>i.product)}}).select("_id category").lean();const current:any=await Coupon.findOne({code:String(couponCode).toUpperCase(),active:true});const eligibleSubtotal=current&&((current.products?.length||current.categories?.length)?items.reduce((n:number,i:any)=>{const c=cats.find((x:any)=>String(x._id)===String(i.product))?.category?.toString();const eligible=(current.products?.length?current.products.some((x:any)=>String(x)===String(i.product)):false)||(current.categories?.length?current.categories.some((x:any)=>String(x)===String(c)):false);return n+(eligible?Number(i.lineTotal):0);},0):subtotal);const valid:any=await validateCoupon(couponCode,subtotal,userId,productIds,cats.map(x=>x.category?.toString()).filter(Boolean),eligibleSubtotal);coupon=valid.coupon;discount=roundMoney(valid.discount);}const shipping=roundMoney(subtotal-discount>=Number(settings?.freeShippingThreshold||5000)?0:Number(settings?.shippingFee||250));return{items,subtotal,discount,shipping,total:roundMoney(subtotal-discount+shipping),coupon:coupon?.code||null};}
+
+export async function previewGuestOrder(guestTokenHash:string,couponCode?:string){
+  if(couponCode)
+    throw fail("Guest checkout currently supports checkout without account-based coupons. Please login to use this coupon.");
+
+  const cart:any=await Cart.findOne({guestTokenHash}).populate("items.product");
+
+  if(!cart?.items?.length)throw fail("Cart is empty");
+
+  const settings:any=await SiteSettings.findOne();
+  let subtotal=0;
+  const items:any[]=[];
+
+  for(const ci of cart.items){
+    const p:any=ci.product;
+
+    if(!p?.active||!p.availability)
+      throw fail("A product is unavailable",409);
+
+    const qty=Number(ci.quantity);
+    const v=cartVariant(ci.variant,p);
+
+    if(v&&v.stock<qty)
+      throw fail(`Insufficient variant stock for ${p.name}`,409);
+
+    if(!v&&p.stock<qty)
+      throw fail(`Insufficient stock for ${p.name}`,409);
+
+    const unit=effectivePrice(p,v);
+    const line=roundMoney(unit*qty);
+
+    subtotal=roundMoney(subtotal+line);
+
+    items.push({
+      product:p._id,
+      name:p.name,
+      sku:v?.sku||p.sku,
+      quantity:qty,
+      unitPrice:unit,
+      lineTotal:line,
+      variantId:v?._id
+    });
+  }
+
+  const shipping=roundMoney(
+    subtotal>=Number(settings?.freeShippingThreshold||5000)
+      ?0
+      :Number(settings?.shippingFee||250)
+  );
+
+  return {
+    items,
+    subtotal,
+    discount:0,
+    shipping,
+    total:roundMoney(subtotal+shipping),
+    coupon:null
+  };
+}
+
+export async function createGuestOrder(
+  guestTokenHash:string,
+  input:any,
+  idempotencyKey?:string
+){
+  if(input.couponCode)
+    throw fail("Guest checkout currently supports checkout without account-based coupons. Please login to use this coupon.");
+
+  const session=await mongoose.startSession();
+  let created:any;
+
+  const guestActor=new mongoose.Types.ObjectId(
+    "000000000000000000000000"
+  ).toString();
+
+  try{
+    await session.withTransaction(async()=>{
+      const fingerprint=idempotencyKey
+        ?crypto.createHash("sha256")
+          .update(JSON.stringify({
+            paymentMethod:input.paymentMethod,
+            address:input.address,
+            couponCode:null
+          }))
+          .digest("hex")
+        :undefined;
+
+      if(idempotencyKey){
+        const prior:any=await Order.findOne({
+          guestTokenHash,
+          idempotencyKey
+        }).session(session);
+
+        if(prior){
+          if(
+            prior.idempotencyFingerprint &&
+            prior.idempotencyFingerprint!==fingerprint
+          )
+            throw fail(
+              "Idempotency key was already used for a different checkout request",
+              409
+            );
+
+          created=prior;
+          return;
+        }
+      }
+
+      const cart:any=await Cart.findOne({guestTokenHash}).session(session);
+
+      if(!cart?.items?.length)
+        throw fail("Cart is empty");
+
+      const checkoutOrderId=new mongoose.Types.ObjectId();
+      const settings:any=await SiteSettings.findOne().session(session);
+
+      const pm:any=await PaymentMethod.findOne({
+        _id:input.paymentMethod,
+        active:true
+      }).session(session);
+
+      if(!pm)
+        throw fail("Selected payment method is unavailable");
+
+      let subtotal=0;
+      const items:any[]=[];
+
+      for(const ci of cart.items){
+        const qty=Number(ci.quantity);
+
+        const p:any=await Product.findOne({
+          _id:ci.product,
+          active:true,
+          availability:true
+        }).session(session);
+
+        if(!p)
+          throw fail("A product is unavailable",409);
+
+        const v=cartVariant(ci.variant,p);
+        const unit=effectivePrice(p,v);
+
+        const inventoryTx=await adjustInventory(
+          p._id.toString(),
+          -qty,
+          guestActor,
+          "SALE",
+          "Guest order checkout",
+          v?._id?.toString(),
+          session,
+          "ORDER",
+          checkoutOrderId.toString()
+        );
+
+        if(!inventoryTx)
+          throw fail(`Unable to reserve stock for ${p.name}`,409);
+
+        const line=roundMoney(unit*qty);
+        subtotal=roundMoney(subtotal+line);
+
+        const commission=commissionSnapshot(
+          p,v,line,qty,settings
+        );
+
+        items.push({
+          product:p._id,
+          variantId:v?._id,
+          sku:v?.sku||p.sku,
+          productName:p.name,
+          variantName:v?.name,
+          variantAttributes:v
+            ?Object.fromEntries(v.attributes||[])
+            :undefined,
+          quantity:qty,
+          unitPrice:unit,
+          discount:0,
+          subtotal:line,
+          image:v?.images?.[0]||p.images?.[0],
+          commission
+        });
+      }
+
+      const shipping=roundMoney(
+        subtotal>=Number(settings?.freeShippingThreshold||5000)
+          ?0
+          :Number(settings?.shippingFee||250)
+      );
+
+      const total=roundMoney(subtotal+shipping);
+
+      const guestReference=
+        `GUEST-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
+      created=(await Order.create([{
+        _id:checkoutOrderId,
+        orderNumber:orderNo(),
+        idempotencyKey,
+        idempotencyFingerprint:fingerprint,
+        guestTokenHash,
+        guestReference,
+        items,
+        subtotal,
+        discount:0,
+        shipping,
+        total,
+        paymentMethod:pm._id,
+        paymentStatus:"PENDING",
+        status:"PENDING",
+        addressSnapshot:input.address,
+        statusHistory:[{
+          status:"PENDING",
+          at:new Date()
+        }]
+      }],{session}))[0];
+
+      await Cart.updateOne(
+        {guestTokenHash},
+        {$set:{items:[]}},
+        {session}
+      );
+
+      const admins:any[]=await User.find({
+        role:{$in:["admin","super_admin"]},
+        active:true
+      }).select("_id").session(session);
+
+      if(admins.length){
+        await Notification.create(
+          admins.map(a=>({
+            user:a._id,
+            type:"NEW_ORDER",
+            title:"New guest order received",
+            message:`Guest order ${created.orderNumber} requires processing/payment review.`,
+            data:{orderId:created._id}
+          })),
+          {session}
+        );
+      }
+    });
+
+    return created;
+  }catch(e:any){
+    if(e?.code===11000&&idempotencyKey){
+      const prior:any=await Order.findOne({
+        guestTokenHash,
+        idempotencyKey
+      });
+
+      if(prior)return prior;
+    }
+
+    throw e;
+  }finally{
+    await session.endSession();
+  }
+}
