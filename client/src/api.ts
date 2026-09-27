@@ -1,4 +1,4 @@
-import axios, {
+﻿import axios, {
   AxiosError,
   InternalAxiosRequestConfig
 } from "axios";
@@ -85,8 +85,8 @@ const API_ORIGIN = String(
 const normalizeUploadUrls = <T>(value: T): T => {
   if (typeof value === "string") {
     return value.replace(
-      /(^|https?:\/\/[^/]+)?\/api\/uploads\/([a-f\d]{24})(?=$|[?#])/i,
-      (_match, _origin, id) => `${API_ORIGIN}/api/uploads/${id}`
+      /(?:https?:\/\/[^/]+)?\/api\/uploads\/([a-f\d]{24})(?=$|[?#])/i,
+      `${API_ORIGIN}/api/uploads/$1`
     ) as T;
   }
 
@@ -356,4 +356,5 @@ export const apiError = (error: any) => {
     "Something went wrong. Please try again."
   );
 };
+
 
