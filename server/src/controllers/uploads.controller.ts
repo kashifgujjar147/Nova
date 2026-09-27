@@ -4,5 +4,5 @@ export const create=async(q:any,r:any)=>{const {kind,filename,mimeType,data,orde
   const field=kind==="DELIVERY_PROOF"?"proofUpload":"signatureUpload";
   const by=kind==="DELIVERY_PROOF"?"proofUploadedBy":"proofUploadedBy";
   await Delivery.findOneAndUpdate({order:orderId},{$set:{[field]:u._id,[by]:q.user.id,proofUploadedAt:new Date()}},{upsert:true});
-}await record(q.user.id,"UPLOAD","Upload",u._id.toString(),{kind,orderId});return ok(r,{id:u._id,url:`/api/uploads/${u._id}`,filename:safe,mimeType:u.mimeType,size:u.size},"Uploaded",201)};
+}await record(q.user.id,"UPLOAD","Upload",u._id.toString(),{kind,orderId});const forwardedProto=String(q.headers["x-forwarded-proto"]||"").split(",")[0].trim();const protocol=forwardedProto||q.protocol||"http";const host=q.get("host");return ok(r,{id:u._id,url:`${protocol}://${host}/api/uploads/${u._id}`,filename:safe,mimeType:u.mimeType,size:u.size},"Uploaded",201)};
 export const get=async(q:any,r:any)=>{const u:any=await Upload.findById(q.params.id).select("+data");if(!u)return r.status(404).end();if(u.kind!=="ADMIN_MEDIA" && (!q.user || (u.owner.toString()!==q.user.id&&!["admin","super_admin"].includes(q.user.role))))return r.status(403).end();r.setHeader("Content-Type",u.mimeType);r.setHeader("Content-Length",u.size);r.setHeader("Content-Disposition",`inline; filename="${u.filename}"`);return r.send(u.data)};
