@@ -1,6 +1,7 @@
 ﻿import * as s from "../services/categories.service";import{ok}from"../utils/response";import{record}from"../services/audit.service";
 export const list=async(_q:any,r:any)=>ok(r,await s.list());
 export const adminList=async(_q:any,r:any)=>ok(r,await s.adminList());
-export const create=async(q:any,r:any)=>{const x=await s.create(q.body);await record(q.user.id,"CREATE","Category",x._id.toString());return ok(r,x,"Created",201)};
+export const create=async(q:any,r:any)=>{console.log("[CATEGORY CREATE BODY]",JSON.stringify(q.body));const x=await s.create(q.body);await record(q.user.id,"CREATE","Category",x._id.toString());return ok(r,x,"Created",201)};
 export const update=async(q:any,r:any)=>{const x=await s.update(q.params.id,q.body);await record(q.user.id,"UPDATE","Category",q.params.id);return ok(r,x)};
 export const remove=async(q:any,r:any)=>{const x=await s.remove(q.params.id);await record(q.user.id,"DELETE","Category",q.params.id);return ok(r,x)};
+
