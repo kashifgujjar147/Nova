@@ -104,26 +104,63 @@ export function Home(){
        Only ONE banner visible at a time.
        ===================================================== */}
 
-   <section className="hero-premium">
-    {banner?.image&&<img src={banner.image}alt={banner.title||"NovaCart promotion"}/>}
-    <div className="hero-overlay"></div>
-    <div className="hero-content">
-     <span className="eyebrow">NOVACART COLLECTION</span>
-     <h1>{banner?.title||"Everything you want."}<br/><em>Beautifully selected.</em></h1>
-     {banner?.subtitle&&<p>{banner.subtitle}</p>}
-     {!banner?.subtitle&&<p>Discover carefully selected products, exclusive offers and a premium shopping experience.</p>}
-     <div className="hero-actions">
-      <Link className="btn hero-btn"to={banner?.buttonUrl||"/products"}>{banner?.buttonText||"Explore collection"} <span>→</span></Link>
-      <Link className="hero-text-link"to="/categories">Browse categories</Link>
-     </div>
-    </div>
+   {banner&&(
+    <section className="hero-premium">
+     {banner.image&&(
+      <img
+       src={banner.image}
+       alt={banner.title||"Banner"}
+      />
+     )}
 
-    {banners.length>1&&
-     <div className="hero-dots">
-      {banners.map((_,i)=><button key={i}aria-label={`Go to slide ${i+1}`}className={i===slide?"active":""}onClick={()=>setSlide(i)}/>)}
+     <div className="hero-overlay"></div>
+
+     <div className="hero-content">
+
+      {banner.title&&(
+       <h1>{banner.title}</h1>
+      )}
+
+      {banner.subtitle&&(
+       <p>{banner.subtitle}</p>
+      )}
+
+      {(banner.buttonUrl||banner.buttonText)&&(
+       <div className="hero-actions">
+
+        {banner.buttonUrl&&(
+         <Link
+          className="btn hero-btn"
+          to={banner.buttonUrl}
+         >
+          {banner.buttonText||"Explore"}
+          <span>→</span>
+         </Link>
+        )}
+
+       </div>
+      )}
+
      </div>
-    }
-   </section>
+
+     {banners.length>1&&(
+      <div className="hero-dots">
+       {banners.map((_,i)=>(
+        <button
+         key={i}
+         aria-label={`Go to slide ${i+1}`}
+         className={i===bannerIndex?"active":""}
+         onClick={()=>{
+          setBannerIndex(i);
+          setSlide(i);
+         }}
+        />
+       ))}
+      </div>
+     )}
+
+    </section>
+   )}
 
    <section className="trust-strip">
 
@@ -399,6 +436,7 @@ export function Home(){
   </main>
  );
 }
+
 
 
 
