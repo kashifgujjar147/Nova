@@ -1,4 +1,4 @@
-﻿import { Schema, model } from "mongoose";
+import { Schema, model } from "mongoose";
 
 const schema = new Schema(
   {
@@ -35,7 +35,7 @@ const schema = new Schema(
 
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "REFUNDED"],
+      enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "REFUNDED"],
       default: "PENDING",
       index: true,
     },
@@ -78,3 +78,4 @@ schema.index(
 );
 
 export const Payment = model("Payment", schema);
+
