@@ -1,4 +1,4 @@
-﻿import path from "path";
+import path from "path";
 import dotenv from "dotenv";
 import { z } from "zod";
 
@@ -17,6 +17,8 @@ export const env = z
     PORT: z.coerce.number().default(5000),
 
     CLIENT_URL: z.string().url(),
+
+    API_PUBLIC_URL: z.string().url().optional().or(z.literal("")),
 
     ALLOWED_ORIGINS: z.string().default(""),
 

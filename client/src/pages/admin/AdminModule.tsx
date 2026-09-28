@@ -1,4 +1,4 @@
-﻿import{useEffect,useState}from"react";import{Link,useNavigate}from"react-router-dom";import{request,apiError}from"../../api";import{money}from"../../components/Layout";import AdminShell from"../../components/AdminShell";
+import{useEffect,useState}from"react";import{Link,useNavigate}from"react-router-dom";import{request,apiError}from"../../api";import{money}from"../../components/Layout";import AdminShell from"../../components/AdminShell";
 const maps:any={products:"/products/admin/all",categories:"/categories/admin/all",payments:"/payments",orders:"/orders/admin/list",commissions:"/commissions",withdrawals:"/withdrawals/admin",banners:"/banners/admin/all","promo-images":"/promo-images/admin/all",videos:"/videos/admin/all",coupons:"/coupons",inventory:"/inventory",customers:"/admin/customers","payment-methods":"/payment-methods/admin/all",affiliates:"/affiliates/admin",reviews:"/reviews/admin/all",delivery:"/delivery",notifications:"/notifications/admin/all",settings:"/settings","audit-logs":"/audit","admin-users":"/admin-users"};
 const endpoints:any={affiliates:"/affiliates/admin","admin-users":"/admin-users",products:"/products",categories:"/categories",banners:"/banners","promo-images":"/promo-images",videos:"/videos",coupons:"/coupons","payment-methods":"/payment-methods",settings:"/settings",notifications:"/notifications"};
 const fields:any={
@@ -17,24 +17,189 @@ products:[
 ["originalPrice","Original price (PKR) *"],
 ["salePrice","Sale price (PKR) *"],
 ["stock","Stock quantity *"],
-["images","Product images *"],
 ["description","Description"],
 ["brand","Brand"],
 ["colors","Colors (comma separated)"],
 ["sizes","Sizes (comma separated)"],
 ["gender","Gender (Male/Female/Unisex)"],
-["video","Product video URL"]
 ]};
 const bools=["active","featured","newArrival","bestSeller","limitedStock","limitedTimeOffer","availability","maintenanceMode","requiresTransactionId","requiresReceipt","requiresManualReview"];
 const arrays=["images","colors","sizes"];
 const dates=["startDate","endDate","startsAt","expiresAt","offerStartDate","offerEndDate"];
 function Input({field,value,onChange,onFile}:{field:string;value:any;onChange:(v:any)=>void;onFile?:(f:File)=>void}){if(field==="discountType")return <select value={value??""}onChange={e=>onChange(e.target.value||undefined)}><option value="">No discount</option><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></select>;if(bools.includes(field))return <label className="check"><input type="checkbox"checked={Boolean(value)}onChange={e=>onChange(e.target.checked)}/>{field}</label>;if(arrays.includes(field))return <input value={Array.isArray(value)?value.join(", "):value??""}onChange={e=>onChange(e.target.value.split(",").map((x:string)=>x.trim()).filter(Boolean))}/>;if(dates.includes(field))return <input type="datetime-local"value={value?new Date(value).toISOString().slice(0,16):""}onChange={e=>onChange(e.target.value?new Date(e.target.value).toISOString():undefined)}/>;if(field==="description"||field==="instructions"||field==="message"||field==="subtitle")return <textarea value={value??""}onChange={e=>onChange(e.target.value)}/>;const numericFields=["value","minOrder","maxDiscount","usageLimit","perUserLimit","ordering","sortOrder","stock","originalPrice","salePrice","discountValue","discountPercentage","fixedDiscountAmount","weight"];return <input type={numericFields.includes(field)?"number":"text"}value={value??""}onChange={e=>onChange(numericFields.includes(field)?(e.target.value===""?undefined:Number(e.target.value)):e.target.value)}/>;}
 function UploadButton({onUploaded,kind="ADMIN_MEDIA",multiple=false}:{onUploaded:(url:string)=>void;kind?:string;multiple?:boolean}){const[busy,setBusy]=useState(false);return <label className="btn ghost small">{busy?"Uploadingâ€¦":"Upload media"}<input hidden type="file"multiple={multiple}accept="image/jpeg,image/png,image/webp,video/mp4"onChange={async e=>{const files=Array.from(e.target.files||[]);if(!files.length)return;setBusy(true);try{for(const file of files){const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(file)});const up=await request<any>("post","/uploads",{kind,filename:file.name,mimeType:file.type,data});onUploaded(up.data.url)}}catch(err){alert(apiError(err))}finally{setBusy(false);e.target.value=""}}}/></label>;}
+function ProductMedia({form,setForm}:{form:any;setForm:any}){
+  const[busy,setBusy]=useState("");
+
+  const upload=async(file:File,target:"image"|"video",index?:number)=>{
+    if(!file)return;
+
+    const key=target==="image"?`image-${index}`:"video";
+    setBusy(key);
+
+    try{
+      const data=await new Promise<string>((resolve,reject)=>{
+        const r=new FileReader();
+        r.onload=()=>resolve(String(r.result));
+        r.onerror=reject;
+        r.readAsDataURL(file);
+      });
+
+      const up=await request<any>("post","/uploads",{
+        kind:"ADMIN_MEDIA",
+        filename:file.name,
+        mimeType:file.type,
+        data
+      });
+
+      setForm((x:any)=>{
+        if(target==="video"){
+          return {...x,video:up.data.url};
+        }
+
+        const images=Array.isArray(x.images)?[...x.images]:[];
+        images[index as number]=up.data.url;
+
+        return {
+          ...x,
+          images:images.slice(0,3)
+        };
+      });
+    }catch(err){
+      alert(apiError(err));
+    }finally{
+      setBusy("");
+    }
+  };
+
+  const removeImage=(index:number)=>{
+    setForm((x:any)=>{
+      const images=Array.isArray(x.images)?[...x.images]:[];
+      images.splice(index,1);
+      return {...x,images};
+    });
+  };
+
+  const images=Array.isArray(form.images)?form.images:[];
+
+  return <section className="card">
+    <div className="section-head">
+      <div>
+        <h2>Product Media</h2>
+        <p className="muted">Exactly 3 product images and 1 product video.</p>
+      </div>
+    </div>
+
+    <div className="media-grid">
+      {[0,1,2].map((index:number)=>{
+        const url=images[index];
+
+        return <div className="media-item" key={`product-image-${index}`}>
+          <strong>Image {index+1}</strong>
+
+          {url&&
+            <img
+              src={url}
+              alt={`Product ${index+1}`}
+              style={{width:"100%",maxHeight:180,objectFit:"contain"}}
+            />
+          }
+
+          {!url&&
+            <div className="empty">No image selected.</div>
+          }
+
+          <label className="btn ghost small">
+            {busy===`image-${index}`?"Uploading...":url?"Replace image":"Upload image"}
+            <input
+              hidden
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={e=>{
+                const file=e.target.files?.[0];
+                if(file)upload(file,"image",index);
+                e.currentTarget.value="";
+              }}
+            />
+          </label>
+
+          {url&&
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={()=>removeImage(index)}
+            >
+              Remove
+            </button>
+          }
+        </div>
+      })}
+    </div>
+
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-head">
+        <div>
+          <h3>Product Video</h3>
+          <p className="muted">Upload one MP4 product video.</p>
+        </div>
+      </div>
+
+      {form.video&&
+        <video
+          src={form.video}
+          controls
+          style={{width:"100%",maxHeight:280}}
+        />
+      }
+
+      {!form.video&&
+        <div className="empty">No product video selected.</div>
+      }
+
+      <label className="btn ghost small">
+        {busy==="video"?"Uploading...":form.video?"Replace video":"Upload video"}
+        <input
+          hidden
+          type="file"
+          accept="video/mp4"
+          onChange={e=>{
+            const file=e.target.files?.[0];
+            if(file)upload(file,"video");
+            e.currentTarget.value="";
+          }}
+        />
+      </label>
+
+      {form.video&&
+        <button
+          type="button"
+          className="btn ghost small"
+          onClick={()=>setForm((x:any)=>({...x,video:""}))}
+        >
+          Remove video
+        </button>
+      }
+    </div>
+  </section>;
+}
 function VariantManager({variants,onChange}:{variants:any[];onChange:(v:any[])=>void}){const add=()=>onChange([...variants,{sku:"",name:"",price:0,stock:0,attributes:{color:"",size:""},images:[],active:true}]);const patch=(i:number,k:string,v:any)=>onChange(variants.map((x,j)=>j===i?{...x,[k]:v}:x));const patchAttr=(i:number,k:string,v:string)=>onChange(variants.map((x,j)=>j===i?{...x,attributes:{...(x.attributes||{}),[k]:v}}:x));return <section className="card"><div className="section-head"><h2>Variants</h2><button className="btn"type="button"onClick={add}>Add variant</button></div>{variants.map((v,i)=><div className="card variant"key={v._id||i}><div className="form-grid"><label>SKU<input value={v.sku||""}onChange={e=>patch(i,"sku",e.target.value)}/></label><label>Name<input value={v.name||""}onChange={e=>patch(i,"name",e.target.value)}/></label><label>Price<input type="number"min="0"value={v.price??0}onChange={e=>patch(i,"price",Number(e.target.value))}/></label><label>Stock<input type="number"min="0"value={v.stock??0}onChange={e=>patch(i,"stock",Number(e.target.value))}/></label><label>Color<input value={v.attributes?.color||""}onChange={e=>patchAttr(i,"color",e.target.value)}/></label><label>Size<input value={v.attributes?.size||""}onChange={e=>patchAttr(i,"size",e.target.value)}/></label><label>Images<input value={(v.images||[]).join(", ")}onChange={e=>patch(i,"images",e.target.value.split(",").map((x:string)=>x.trim()).filter(Boolean))}/></label><label className="check"><input type="checkbox"checked={v.active!==false}onChange={e=>patch(i,"active",e.target.checked)}/>Active</label></div><button className="btn ghost small"type="button"onClick={()=>onChange(variants.filter((_,j)=>j!==i))}>Remove variant</button></div>)}{!variants.length&&<div className="empty">No variants. Parent-product stock will be used.</div>}</section>;}
 export function Admin(){const[d,setD]=useState<any>(),[err,setErr]=useState("");const nav=useNavigate();useEffect(()=>{request("get","/admin/dashboard").then(r=>setD(r.data)).catch(e=>setErr(apiError(e)))},[]);const links=["products","categories","orders","payments","inventory","customers","affiliates","commissions","withdrawals","banners","promo-images","videos","coupons","reviews","delivery","payment-methods","notifications","settings","audit-logs","admin-users"];return <AdminShell><main className="page"><div className="section-head"><div><span className="eyebrow">ADMIN</span><h1>Control center</h1></div></div>{err&&<div className="error">{err}</div>}<div className="stats">{Object.entries(d||{}).map(([k,v])=><div key={k}><span>{k.replace(/([A-Z])/g," $1")}</span><strong>{typeof v==="number"&&/sales|payments/i.test(k)?money(v as number):String(v)}</strong></div>)}</div><div className="admin-grid">{links.map(x=><button className="card admin-link"key={x}onClick={()=>nav("/admin/"+x)}>{x.replace(/-/g," ")}</button>)}</div></main></AdminShell>;}
 export function AdminModule({name}:{name:string}){const[data,setData]=useState<any>(),[form,setForm]=useState<any>({active:true}),[variants,setVariants]=useState<any[]>([]),[categories,setCategories]=useState<any[]>([]),[err,setErr]=useState(""),[editing,setEditing]=useState<any>();const load=()=>{const url=maps[name];if(!url)return;request("get",url).then(r=>setData(r.data)).catch(e=>setErr(apiError(e)))};useEffect(()=>{load()},[name]);useEffect(()=>{if(name==="products"){request("get","/categories").then(r=>{const d:any=r.data;setCategories(Array.isArray(d)?d:(d?.items||[]))}).catch(()=>setCategories([]))}},[name]);const list=Array.isArray(data)?data:data?.items||((name==="settings"&&data)?[data]:[]);const prepare=(x:any)=>{const y={...x};if(name==="settings"){y.socialWhatsapp=x.social?.whatsapp||"";y.socialMessenger=x.social?.messenger||"";y.socialTelegram=x.social?.telegram||"";y.socialTiktok=x.social?.tiktok||"";}return y;};
 const save=async()=>{try{const payload:any={...form};
 
+if(name==="products"){
+  const productImages=Array.isArray(payload.images)
+    ? payload.images.filter((x:any)=>String(x||"").trim())
+    : [];
+
+  if(productImages.length!==3){
+    throw new Error("Product requires exactly 3 images.");
+  }
+
+  if(!String(payload.video||"").trim()){
+    throw new Error("Product requires exactly 1 video.");
+  }
+}
 if(name==="categories"){
   const categoryPayload:any={};
   const allowed=[
@@ -158,9 +323,6 @@ return <AdminShell><main className="page">
         </label>
       </div>
 
-      <div className="card">
-        <div className="section-head">
-          <div>
                     <div className="card" style={{gridColumn:"1 / -1"}}>
           <div className="section-head">
             <div>
@@ -207,40 +369,8 @@ return <AdminShell><main className="page">
             </label>
           </div>
         </div>
-<h3>Product image</h3>
-            <p className="muted">Upload a product image.</p>
-          </div>
+<ProductMedia form={form} setForm={setForm}/>
 
-          <UploadButton
-            onUploaded={u=>setForm((x:any)=>({
-              ...x,
-              images:[...(Array.isArray(x.images)?x.images:[]),u]
-            }))}
-          />
-        </div>
-
-        <div className="media-grid">
-          {(Array.isArray(form.images)?form.images:[]).map((url:string,i:number)=>
-            <div className="media-item" key={url+i}>
-              <img src={url} alt={`Product ${i+1}`}/>
-              <button
-                type="button"
-                className="btn ghost small"
-                onClick={()=>setForm((x:any)=>({
-                  ...x,
-                  images:(Array.isArray(x.images)?x.images:[]).filter((_:string,j:number)=>j!==i)
-                }))}
-              >
-                Remove
-              </button>
-            </div>
-          )}
-
-          {!Array.isArray(form.images)||!form.images.length&&
-            <div className="empty">No image uploaded.</div>
-          }
-        </div>
-      </div>
 
       {categories.length===0&&
         <div className="muted">
@@ -502,20 +632,3 @@ return <AdminShell><main className="page">
 </main></AdminShell>;
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
