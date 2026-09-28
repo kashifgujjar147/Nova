@@ -26,3 +26,5 @@ export * from './EmailToken';
 export * from './Upload';
 
 export * from './PromoImage';
+
+export * from './Withdrawal';

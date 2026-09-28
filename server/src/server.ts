@@ -1,7 +1,7 @@
 ﻿import {app} from './app';
 import {connectDatabase} from './database/mongo';
 import {env} from './config/env';
-import {PaymentMethod} from './models';
+import {PaymentMethod,Category,SiteSettings} from './models';
 
 async function ensurePaymentMethods(){
   const methods = [
@@ -58,9 +58,31 @@ async function ensurePaymentMethods(){
   console.log("Payment methods verified.");
 }
 
+
+async function ensureCatalogDefaults(){
+  const categories=[
+    {name:"Perfume & Body Spray",slug:"perfume-body-spray",sortOrder:1},
+    {name:"Mobile Accessories",slug:"mobile-accessories",sortOrder:2},
+    {name:"Fashion & Clothes",slug:"fashion-clothes",sortOrder:3},
+    {name:"Beauty & Personal Care",slug:"beauty-personal-care",sortOrder:4},
+    {name:"Electronics & Other Items",slug:"electronics-other-items",sortOrder:5}
+  ];
+  for(const category of categories){
+    await Category.updateOne({slug:category.slug},{$setOnInsert:{...category,active:true}},{upsert:true});
+  }
+  const settings:any=await SiteSettings.findOne();
+  if(!settings){
+    await SiteSettings.create({defaultCommission:10});
+  }else if(Number(settings.defaultCommission)===5){
+    await SiteSettings.updateOne({_id:settings._id},{$set:{defaultCommission:10}});
+  }
+  console.log("Catalog categories and commission setting verified.");
+}
+
 connectDatabase()
   .then(async()=>{
     await ensurePaymentMethods();
+    await ensureCatalogDefaults();
     app.listen(env.PORT,()=>console.log(`NovaCart API listening on ${env.PORT}`));
   })
   .catch((e:any)=>{

@@ -93,3 +93,31 @@ export const paymentReviewSchema=z.object({body:reviewSchema.shape.body,query:em
 
 
 
+
+
+export const withdrawalRequestSchema=z.object({
+  body:z.object({
+    amount:z.number().positive(),
+    method:z.enum(["EASYPAISA","JAZZCASH","BANK_TRANSFER"]),
+    accountTitle:z.string().trim().min(2).max(120),
+    accountNumber:z.string().trim().min(3).max(120),
+    bankName:z.string().trim().max(120).optional(),
+    note:z.string().trim().max(1000).optional()
+  }).strict().superRefine((v,ctx)=>{
+    if(v.method==="BANK_TRANSFER"&&!v.bankName){
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:"Bank name is required for bank transfer",path:["bankName"]});
+    }
+  }),
+  query:empty,
+  params:empty
+});
+export const withdrawalTransitionSchema=z.object({
+  body:z.object({
+    status:z.enum(["APPROVED","REJECTED","PAID"]),
+    note:z.string().trim().max(1000).optional(),
+    paymentReference:z.string().trim().max(200).optional()
+  }).strict(),
+  query:empty,
+  params:z.object({id:oid}).strict()
+});
+export const withdrawalIdSchema=z.object({body:empty,query:empty,params:z.object({id:oid}).strict()});

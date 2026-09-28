@@ -1,5 +1,12 @@
 ﻿import {Product,Category} from "../models";import {roundMoney} from "../utils/money";import {getAvailableStock} from "../utils/stock";
 const fail=(m:string,s=400)=>Object.assign(new Error(m),{status:s});
+function validateProductMedia(data:any){
+  const images=Array.isArray(data.images)?data.images.filter((x:any)=>String(x||"").trim()):[];
+  const video=String(data.video||"").trim();
+  if(images.length!==3)throw fail("Each product must have exactly 3 product images");
+  if(new Set(images.map((x:any)=>String(x).trim())).size!==3)throw fail("Product images must be unique");
+  if(!video)throw fail("Each product must have 1 product video");
+}
 function normalizeVariants(variants:any[]|undefined, existing:any[]=[]){
  if(!variants)return undefined; const seen=new Set<string>(); const existingById=new Map(existing.map((v:any)=>[String(v._id),v]));
  return variants.map((v:any)=>{const sku=String(v.sku||"").trim().toUpperCase();if(!sku)throw fail("Variant SKU is required");if(seen.has(sku))throw fail(`Duplicate variant SKU: ${sku}`);seen.add(sku);const attrs=v.attributes&&typeof v.attributes==="object"&&!Array.isArray(v.attributes)?Object.fromEntries(Object.entries(v.attributes).map(([k,val])=>[String(k),String(val)])):{};const old=v._id?existingById.get(String(v._id)):undefined;return {_id:v._id,sku,name:String(v.name||sku).trim(),attributes:attrs,color:v.color==null?undefined:String(v.color),size:v.size==null?undefined:String(v.size),price:roundMoney(Number(v.price)),compareAtPrice:v.compareAtPrice==null?undefined:roundMoney(Number(v.compareAtPrice)),stock:old?Number(old.stock||0):0,active:v.active!==false,images:Array.isArray(v.images)?v.images.filter((x:any)=>typeof x==="string"&&x.length<=2000):[],weight:v.weight==null?undefined:Number(v.weight),commissionType:v.commissionType||"default",commissionValue:v.commissionValue==null?undefined:Number(v.commissionValue)};});
@@ -88,11 +95,15 @@ export async function create(data:any){
 
  if(!data.category)delete payload.category;
 
+ validateProductMedia(data);
  const originalPrice=roundMoney(Number(data.originalPrice));
 const effectiveSalePrice=data.discountType ? calculateDiscountedPrice(originalPrice,data.discountType,Number(data.discountValue ?? (data.discountType==="percentage"?data.discountPercentage:data.fixedDiscountAmount))) : roundMoney(Number(data.salePrice));
 return Product.create({...payload,salePrice:effectiveSalePrice,originalPrice});}
 export async function update(id:string,data:any){if(Object.prototype.hasOwnProperty.call(data,"stock")||data.variants?.some((v:any)=>Object.prototype.hasOwnProperty.call(v,"stock")))throw fail("Inventory must be changed through the inventory workflow");const existing:any=await Product.findById(id);if(!existing)throw fail("Product not found",404);const variants=normalizeVariants(data.variants,existing.variants||[]);if(variants){const retained=new Set(variants.filter((v:any)=>v._id).map((v:any)=>String(v._id)));const removed=(existing.variants||[]).filter((v:any)=>!retained.has(String(v._id))&&Number(v.stock||0)>0);if(removed.length)throw fail("Variants with stock cannot be removed; reduce their stock to zero first",409);}const payload=normalizeDiscount({...data});delete payload.stock;delete payload.variants;if(variants)payload.variants=variants;payload.originalPrice=data.originalPrice!=null?roundMoney(Number(data.originalPrice)):existing.originalPrice;
 if(data.discountType){ payload.salePrice=calculateDiscountedPrice(payload.originalPrice,data.discountType,Number(data.discountValue ?? (data.discountType==="percentage"?data.discountPercentage:data.fixedDiscountAmount))); } else { payload.salePrice=data.salePrice!=null?roundMoney(Number(data.salePrice)):existing.salePrice; }
+const finalImages=Object.prototype.hasOwnProperty.call(data,"images")?data.images:existing.images;
+const finalVideo=Object.prototype.hasOwnProperty.call(data,"video")?data.video:existing.video;
+validateProductMedia({images:finalImages,video:finalVideo});
 return Product.findByIdAndUpdate(id,payload,{new:true,runValidators:true});}
 export const remove=(id:string)=>Product.findByIdAndUpdate(id,{active:false},{new:true});
 
