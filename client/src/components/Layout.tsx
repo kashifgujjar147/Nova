@@ -1,4 +1,4 @@
-﻿import React,{useEffect,useState}from"react";
+import React,{useEffect,useState}from"react";
 import{Link,useLocation,useNavigate}from"react-router-dom";
 import{request}from"../api";
 import type{CartResponse,NotificationListResponse,StoreSettings}from"../types";
@@ -23,7 +23,7 @@ export default function Layout({children}:{children:React.ReactNode}){
  useEffect(()=>{
    request<StoreSettings>("get","/settings").then(r=>setSettings(r.data)).catch(()=>{});
    if(token){
-     request<CartResponse>("get","/cart").then(r=>setC(r.data)).catch(()=>{});
+     request<CartResponse>("get",token?"/cart":"/cart/guest").then(r=>setC(r.data)).catch(()=>{});
      request<NotificationListResponse>("get","/notifications?limit=1")
        .then(r=>setUnread(Number(r.data?.unread||0))).catch(()=>{});
    }
@@ -55,7 +55,7 @@ export default function Layout({children}:{children:React.ReactNode}){
  return (
   <div className="site-shell">
    <div className="announcement">
-    <div>Premium shopping • Secure payments • Reliable delivery</div>
+    <div>Premium shopping � Secure payments � Reliable delivery</div>
     <div className="announcement-links">
      <Link to="/contact">Need help?</Link>
      <Link to="/products">Shop now</Link>
@@ -83,7 +83,7 @@ export default function Layout({children}:{children:React.ReactNode}){
      </nav>
 
      <form className="header-search"onSubmit={submitSearch}>
-      <span>⌕</span>
+      <span>?</span>
       <input
        value={q}
        onChange={e=>setQ(e.target.value)}
@@ -94,17 +94,17 @@ export default function Layout({children}:{children:React.ReactNode}){
 
      <div className="header-actions">
       {token&&<Link className="icon-action"to="/account/notifications"aria-label="Notifications">
-       <span>♡</span>{unread>0&&<b>{unread}</b>}
+       <span>?</span>{unread>0&&<b>{unread}</b>}
       </Link>}
 
       <Link className="icon-action"to="/cart"aria-label="Shopping cart">
-       <span>🛒</span>{c?.items?.length?<b>{c.items.length}</b>:null}
+       <span>??</span>{c?.items?.length?<b>{c.items.length}</b>:null}
       </Link>
 
       {token
        ?<div className="account-wrap">
          <Link className="account-action"to="/account">
-          <span className="account-icon">◎</span>
+          <span className="account-icon">?</span>
           <span className="account-label">Account</span>
          </Link>
          <div className="account-dropdown">
@@ -115,13 +115,13 @@ export default function Layout({children}:{children:React.ReactNode}){
           <button onClick={logout}>Logout</button>
          </div>
         </div>
-       :<Link className="login-link"to="/login">Login</Link>}
+       :<div className="account-wrap guest-account-links"><Link className="login-link"to="/login">Login</Link><Link className="login-link"to="/register">Create Account</Link></div>}
      </div>
     </div></div>
 
     <div className="mobile-search">
      <form className="header-search"onSubmit={submitSearch}>
-      <span>⌕</span>
+      <span>?</span>
       <input value={q}onChange={e=>setQ(e.target.value)}placeholder="Search products..."/>
      </form>
     </div>
@@ -166,7 +166,7 @@ export default function Layout({children}:{children:React.ReactNode}){
     </div>
 
     <div className="footer-bottom">
-     <span>© {new Date().getFullYear()} {settings?.storeName||"NovaCart"}. All rights reserved.</span>
+     <span>� {new Date().getFullYear()} {settings?.storeName||"NovaCart"}. All rights reserved.</span>
      <span>Secure commerce experience</span>
     </div>
    </footer>
